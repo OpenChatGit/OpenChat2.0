@@ -1,0 +1,71 @@
+# --- OS / Editor ---
+.DS_Store
+**/.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.code-workspace
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.tox/
+.coverage
+htmlcov/
+*.egg-info/
+.eggs/
+
+# Virtual envs
+.venv/
+venv/
+env/
+backend/.venv/
+
+# --- Node / Frontend ---
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Build artifacts (frontend)
+frontend/dist/
+frontend/build/
+static/build/
+
+# --- Rust / Tauri ---
+# Keep top-level Cargo.lock tracked; ignore local build outputs
+/target/
+frontend/src-tauri/target/
+frontend/src-tauri/gen/
+
+# Installers/packaged artifacts (not checked into git)
+*.dmg
+*.app
+*.app.zip
+*.msi
+*.exe
+*.deb
+*.AppImage
+
+# --- Environment / Secrets ---
+.env
+*.env
+backend/.env
+frontend/.env
+
+# --- Logs & caches ---
+logs/
+*.log
+.cache/
+.parcel-cache/
+coverage/
+
+# --- Misc ---
+*.swp
+*.swo

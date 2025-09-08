@@ -1,0 +1,4 @@
+# Ensure `cargo tauri dev` works from the repository root by pointing Tauri to the Rust crate directory
+# See: https://doc.rust-lang.org/cargo/reference/config.html#env
+[env]
+TAURI_DIR = { value = "frontend", force = true }
