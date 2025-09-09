@@ -1,8 +1,8 @@
-# OpenChat (v0.1.2)
+# OpenChat (v0.1.3)
 
 OpenChat 2.0 is the successor to the legacy "OpenChat" project.
 
-> Experimental Notice (v0.1.2): This release is experimental. Features, APIs, and UI are subject to change without prior notice.
+> Experimental Notice (v0.1.3): This release is experimental. Features, APIs, and UI are subject to change without prior notice.
 
 > Status: The legacy OpenChat is deprecated and will not receive updates. OpenChat 2.0 replaces it.
 

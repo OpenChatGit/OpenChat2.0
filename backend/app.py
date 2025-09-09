@@ -91,6 +91,8 @@ class ChatRequest(BaseModel):
     tools_enabled: Optional[bool] = False
     reasoning_enabled: Optional[bool] = False
     user_context: Optional[Dict[str, Any]] = None
+    user_info: Optional[Dict[str, Any]] = None
+    system_context: Optional[str] = None
 
 
 class TitleRequest(BaseModel):
@@ -217,8 +219,19 @@ async def chat(req: ChatRequest) -> Dict[str, Any]:
     try:
         llm = get_llm(model=req.model or "llama3.1", streaming=False)
         msgs: List[Any] = []
+        
+        # Add system context if provided
+        system_msg = ""
         if (req.system or "").strip():
-            msgs.append(HumanMessage(content=f"[SYSTEM]\n{req.system}"))
+            system_msg += f"[SYSTEM]\n{req.system}\n"
+        if (req.system_context or "").strip():
+            system_msg += f"{req.system_context}\n"
+        if req.user_info and req.user_info.get("name"):
+            system_msg += f"The user's name is {req.user_info['name']}. Use their name when appropriate in responses.\n"
+        
+        if system_msg.strip():
+            msgs.append(HumanMessage(content=system_msg.strip()))
+            
         if req.history:
             for h in req.history[-10:]:
                 if (h.role or "").lower() == "assistant":
@@ -271,9 +284,19 @@ async def chat_sse(req: ChatRequest) -> StreamingResponse:
         try:
             llm = get_llm(model=req.model or "llama3.1", streaming=True)
             msgs: List[Any] = []
+            
+            # Add system context if provided
+            system_msg = ""
             if (req.system or "").strip():
-                # Prepend a lightweight system note
-                msgs.append(HumanMessage(content=f"[SYSTEM]\n{req.system}"))
+                system_msg += f"[SYSTEM]\n{req.system}\n"
+            if (req.system_context or "").strip():
+                system_msg += f"{req.system_context}\n"
+            if req.user_info and req.user_info.get("name"):
+                system_msg += f"The user's name is {req.user_info['name']}. Use their name when appropriate in responses.\n"
+            
+            if system_msg.strip():
+                msgs.append(HumanMessage(content=system_msg.strip()))
+                
             if req.history:
                 for h in req.history[-10:]:
                     if (h.role or "").lower() == "assistant":

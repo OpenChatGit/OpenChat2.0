@@ -143,7 +143,7 @@ async function requestAIGeneratedTitle(conversation) {
     let newTitle = '';
     try {
         // Call FastAPI /title with last 10 messages
-        const messagesPayload = (conversation.messages || []).slice(-10).map(m => ({ role: m.role, content: m.content }));
+        const messagesPayload = (conversation.messages || []).map(m => ({ role: m.role, content: m.content }));
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), 4000);
         const res = await fetch(`${FASTAPI_URL}/title`, {
@@ -353,6 +353,9 @@ let currentConversationId = null;
 let userId = generateUUID();
 // Persisted selected Ollama model
 let selectedOllamaModel = localStorage.getItem('selectedOllamaModel') || null;
+// Track model connection state
+let connectedModels = new Set();
+let currentlyConnectingModel = null;
 
 // Rendering helpers: Plain text by default, Markdown only if code is present
 let __md = null;
@@ -950,13 +953,21 @@ async function generateAssistantFromContent(messageContent, conversation, option
         // Let LangChain backend handle context management automatically via conversation_history parameter
         // No frontend context override - backend determines optimal context window
         // Pass conversation and context to backend - let LangChain manage prompting entirely
+        // Get user information from auth UI
+        const currentUser = authUI ? authUI.getCurrentUser() : null;
+        const userInfo = currentUser ? {
+            name: currentUser.name,
+            email: currentUser.email
+        } : null;
+        
         const backendPayload = {
             message: messageContent,
-            conversation_history: (conversation.messages || []).slice(-10),
+            conversation_history: (conversation.messages || []),
             model: selectedOllamaModel || 'llama3.1',
             ...(regenerationContext && { regeneration_context: regenerationContext }),
             tools_enabled: activeTools && activeTools.has && activeTools.has('websearch'),
-            reasoning_enabled: ENABLE_INTERNAL_REASONING_PROMPT && isReasoningModelActive()
+            reasoning_enabled: ENABLE_INTERNAL_REASONING_PROMPT && isReasoningModelActive(),
+            ...(userInfo && { user_info: userInfo })
         };
         try {
             // Use LangChain backend for all generation - no frontend prompt building
@@ -1114,11 +1125,12 @@ async function generateAssistantFromContent(messageContent, conversation, option
                         serverBase: FASTAPI_URL,
                         model: selectedOllamaModel || 'llama3.1',
                         message: messageContent,
-                        history: (conversation?.messages || []).slice(-20),
+                        history: (conversation?.messages || []),
                         system: '',
                         tools_enabled: !!(activeTools && activeTools.has && activeTools.has('websearch')),
                         reasoning_enabled: !!isReasoningModelActive(),
                         user_context,
+                        ...(userInfo && { user_info: userInfo }),
                         ui: {
                             hideThinking: hideThinkingAnimation,
                             displayTypewriter: displayMessageWithTypewriter,
@@ -1141,11 +1153,12 @@ async function generateAssistantFromContent(messageContent, conversation, option
                         serverBase: FASTAPI_URL,
                         model: selectedOllamaModel || 'llama3.1',
                         message: messageContent,
-                        history: (conversation?.messages || []).slice(-20),
+                        history: (conversation?.messages || []),
                         system: '',
                         tools_enabled: !!(activeTools && activeTools.has && activeTools.has('websearch')),
                         reasoning_enabled: !!isReasoningModelActive(),
                         user_context,
+                        ...(userInfo && { user_info: userInfo }),
                         ui: {
                             hideThinking: hideThinkingAnimation,
                             displayTypewriter: displayMessageWithTypewriter,
@@ -1453,8 +1466,22 @@ async function sendMessage(messageContent) {
 
 function showThinkingAnimation() {
     try {
-        // Delegate to ensureThinkingMessage so positioning respects the anchor
-        ensureThinkingMessage('Thinking…');
+        // Check if we need to show model connection status first
+        if (selectedOllamaModel && !connectedModels.has(selectedOllamaModel) && currentlyConnectingModel !== selectedOllamaModel) {
+            currentlyConnectingModel = selectedOllamaModel;
+            ensureThinkingMessage(`Connecting to ${selectedOllamaModel}...`);
+            // Mark as connected immediately to prevent multiple connection messages
+            connectedModels.add(selectedOllamaModel);
+            // Switch to normal thinking message after delay
+            setTimeout(() => {
+                currentlyConnectingModel = null;
+                setThinkingText('Thinking…');
+            }, 1500);
+        } else {
+            // Model already connected or no model selected
+            ensureThinkingMessage('Thinking…');
+        }
+        
         // Ensure reasoning block dropdown is open by default if present
         const existing = document.getElementById('thinking-message');
         if (existing) {
@@ -2306,22 +2333,32 @@ async function toggleOllamaMenu(event) {
 
 function selectModelByName(modelName) {
     console.log('Selected Ollama model:', modelName);
+    
+    // Check if this is a different model
+    const isModelChange = selectedOllamaModel !== modelName;
+    
     // Persist selection
     selectedOllamaModel = modelName;
     localStorage.setItem('selectedOllamaModel', modelName);
 
+    // If switching to a different model, reset connection state
+    if (isModelChange && modelName) {
+        connectedModels.delete(modelName); // Force reconnection message
+        currentlyConnectingModel = null;
+    }
+
     // Update checkmarks in the open submenu without closing menus
     const menu = document.getElementById('mainTitleMenu');
-    const submenu = menu?.querySelector('.main-title-submenu');
-    if (submenu) {
-        submenu.querySelectorAll('.dropdown-item').forEach(row => {
-            const name = row.querySelector('.model-name')?.textContent?.trim();
-            const right = row.querySelector('.dropdown-item-right') || (() => {
-                const r = document.createElement('div');
-                r.className = 'dropdown-item-right';
-                row.appendChild(r);
+    if (menu) {
+        const items = menu.querySelectorAll('.dropdown-item');
+        items.forEach(item => {
+            const name = (() => {
+                const t = item.textContent || '';
+                const r = t.replace(/\s+/g, ' ').trim();
                 return r;
             })();
+            const right = item.querySelector('.dropdown-item-right');
+            if (!right) return;
             right.innerHTML = '';
             if (name === selectedOllamaModel) {
                 const check = document.createElement('i');
@@ -2331,7 +2368,7 @@ function selectModelByName(modelName) {
         });
     }
 
-    // Reflect selection in the main title button
+    // Update main title to show selected model
     updateMainTitleLabel();
 
     // Warm newly selected model to reduce first-token latency
@@ -2454,15 +2491,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         } catch {}
     });
     
-    // Initialize account manager
-    accountManager = new AccountManager();
-    await accountManager.initialize();
-    
-    // Restore login state if exists
-    if (accountManager.restoreLoginState()) {
-        isLoggedIn = accountManager.getLoginState();
-        currentUser = accountManager.getCurrentUser();
-        updateAuthUI();
+    // Initialize auth system from static/js/auth.js
+    if (window.AccountManager && window.AuthUI) {
+        window.accountManager = new window.AccountManager();
+        await window.accountManager.initialize();
+        
+        window.authUI = new window.AuthUI();
+        await window.authUI.initialize(window.accountManager);
     }
     
     new ThemeManager();
@@ -2735,10 +2770,7 @@ function initCustomScrollbar() {
 }
 
 // Global variables
-let isLoggedIn = false;
-let currentUser = null;
-let selectedAvatar = 'default';
-let selectedAvatarImage = null;
+let authUI = null;
 let accountManager = null;
 
 // Initialize profile dropdown functionality
@@ -2801,96 +2833,16 @@ function closeProfileDropdown() {
 }
 
 function updateAuthUI() {
-    const profileName = document.querySelector('.profile-name');
-    const profilePlan = document.querySelector('.profile-plan');
-    const profileAvatar = document.querySelector('.profile-avatar');
-    const loginMenuItem = document.getElementById('loginMenuItem');
-    const logoutMenuItem = document.getElementById('logoutMenuItem');
-    
-    if (isLoggedIn && currentUser) {
-        if (profileName) profileName.textContent = currentUser.name || 'User';
-        if (profilePlan) profilePlan.textContent = currentUser.plan || 'Free';
-        if (loginMenuItem) loginMenuItem.style.display = 'none';
-        if (logoutMenuItem) logoutMenuItem.style.display = 'block';
-        
-        // Update profile avatar
-        if (profileAvatar) {
-            if (currentUser.avatarImage) {
-                profileAvatar.innerHTML = `<img src="${currentUser.avatarImage}" alt="Profile">`;
-            } else if (currentUser.avatar && currentUser.avatar !== 'default') {
-                profileAvatar.innerHTML = `<i class="fas fa-${currentUser.avatar}"></i>`;
-            } else {
-                profileAvatar.innerHTML = '<i class="fas fa-user"></i>';
-            }
-        }
-    } else {
-        if (profileName) profileName.textContent = 'Guest';
-        if (profilePlan) profilePlan.textContent = 'Not logged in';
-        if (loginMenuItem) loginMenuItem.style.display = 'block';
-        if (logoutMenuItem) logoutMenuItem.style.display = 'none';
-        
-        // Reset to default avatar
-        if (profileAvatar) {
-            profileAvatar.innerHTML = '<i class="fas fa-user"></i>';
-        }
+    // Auth UI is now handled by static/js/auth.js
+    if (window.authUI) {
+        window.authUI.updateAuthUI();
     }
-}
-
-// Authentication screen functions
-function showLoginScreen() {
-    const authScreen = document.getElementById('authScreen');
-    const authTitle = document.getElementById('authTitle');
-    const loginForm = document.getElementById('loginForm');
-    const signupForm = document.getElementById('signupForm');
-    
-    if (!authScreen) return;
-    
-    if (authTitle) authTitle.textContent = 'Login to OpenChat';
-    if (loginForm) loginForm.style.display = 'flex';
-    if (signupForm) signupForm.style.display = 'none';
-    
-    authScreen.style.display = 'flex';
-    closeProfileDropdown();
-    
-    // Focus on email input
-    setTimeout(() => {
-        const emailInput = document.getElementById('loginEmail');
-        if (emailInput) emailInput.focus();
-    }, 100);
-}
-
-function showSignupScreen() {
-    const authScreen = document.getElementById('authScreen');
-    const authTitle = document.getElementById('authTitle');
-    const loginForm = document.getElementById('loginForm');
-    const signupForm = document.getElementById('signupForm');
-    
-    if (!authScreen) return;
-    
-    if (authTitle) authTitle.textContent = 'Sign Up for OpenChat';
-    if (loginForm) loginForm.style.display = 'none';
-    if (signupForm) signupForm.style.display = 'flex';
-    
-    authScreen.style.display = 'flex';
-    closeProfileDropdown();
-    
-    // Focus on name input
-    setTimeout(() => {
-        const nameInput = document.getElementById('signupName');
-        if (nameInput) nameInput.focus();
-    }, 100);
 }
 
 function showAccountScreen() {
-    // For now, just show login screen if not logged in
-    if (!isLoggedIn) {
-        showLoginScreen();
-        return;
+    if (window.authUI) {
+        window.authUI.showAuthScreen('login');
     }
-    
-    // TODO: Implement account management screen
-    showToast('Account management coming soon!', 'info');
-    closeProfileDropdown();
 }
 
 function hideAuthScreen() {
@@ -2934,100 +2886,11 @@ function switchToLogin() {
     showLoginScreen();
 }
 
-async function handleLogin() {
-    const email = document.getElementById('loginEmail').value;
-    const password = document.getElementById('loginPassword').value;
-    
-    if (!email || !password) {
-        showToast('Please fill in all fields', 'error');
-        return;
-    }
-    
-    // Login using AccountManager
-    showToast('Logging in...', 'info');
-    
-    const result = await accountManager.login(email, password);
-    
-    if (result.success) {
-        currentUser = result.user;
-        isLoggedIn = true;
-        updateAuthUI();
-        hideAuthScreen();
-        showToast('Login successful!', 'success');
-    } else {
-        showToast(result.message, 'error');
-    }
-}
+// Login functionality moved to auth-ui.js
 
-async function handleSignup() {
-    const name = document.getElementById('signupName').value;
-    const email = document.getElementById('signupEmail').value;
-    const password = document.getElementById('signupPassword').value;
-    const confirmPassword = document.getElementById('signupConfirmPassword').value;
-    
-    if (!name || !email || !password || !confirmPassword) {
-        showToast('Please fill in all fields', 'error');
-        return;
-    }
-    
-    if (password !== confirmPassword) {
-        showToast('Passwords do not match', 'error');
-        return;
-    }
-    
-    if (password.length < 6) {
-        showToast('Password must be at least 6 characters', 'error');
-        return;
-    }
-    
-    // Create account using AccountManager
-    showToast('Creating account...', 'info');
-    
-    const userData = {
-        name: name,
-        email: email,
-        password: password,
-        avatar: selectedAvatar,
-        avatarImage: selectedAvatarImage
-    };
-    
-    const result = await accountManager.createAccount(userData);
-    
-    if (result.success) {
-        // Auto-login after successful account creation
-        const loginResult = await accountManager.login(email, password);
-        if (loginResult.success) {
-            currentUser = loginResult.user;
-            isLoggedIn = true;
-            updateAuthUI();
-            hideAuthScreen();
-            showToast('Account created and logged in successfully!', 'success');
-        } else {
-            showToast('Account created but login failed', 'error');
-        }
-    } else {
-        showToast(result.message, 'error');
-    }
-    
-    // Reset avatar selection for next use
-    selectedAvatar = 'default';
-    selectedAvatarImage = null;
-}
+// Signup functionality moved to auth-ui.js
 
-function logout() {
-    // Use AccountManager logout
-    accountManager.logout();
-    
-    isLoggedIn = false;
-    currentUser = null;
-    updateAuthUI();
-    closeProfileDropdown();
-    
-    // Show logout message
-    setTimeout(() => {
-        showToast('Logged out successfully', 'success');
-    }, 100);
-}
+// Logout functionality moved to auth-ui.js
 
 // Toast Notification System
 function showToast(message, type = 'info', duration = 4000) {
@@ -3156,12 +3019,13 @@ window.showToast = showToast;
 window.dismissToast = dismissToast;
 window.selectAvatar = selectAvatar;
 window.handleAvatarUpload = handleAvatarUpload;
-window.showLoginScreen = showLoginScreen;
-window.showSignupScreen = showSignupScreen;
-window.showAccountScreen = showAccountScreen;
-window.hideAuthScreen = hideAuthScreen;
-window.switchToSignup = switchToSignup;
-window.switchToLogin = switchToLogin;
-window.handleLogin = handleLogin;
-window.handleSignup = handleSignup;
-window.logout = logout;
+// Auth functions now handled by static/js/auth.js
+window.showLoginScreen = () => window.authUI?.showAuthScreen('login');
+window.showSignupScreen = () => window.authUI?.showAuthScreen('signup');
+window.showAccountScreen = () => window.authUI?.showAuthScreen('login');
+window.hideAuthScreen = () => window.authUI?.hideAuthScreen();
+window.switchToSignup = () => window.authUI?.showAuthScreen('signup');
+window.switchToLogin = () => window.authUI?.showAuthScreen('login');
+window.handleLogin = () => window.authUI?.handleLogin();
+window.handleSignup = () => window.authUI?.handleSignup();
+window.logout = () => window.authUI?.logout();

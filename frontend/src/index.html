@@ -16,6 +16,7 @@
 
   <!-- Custom CSS -->
   <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="auth.css">
 </head>
 
 <body>
@@ -126,12 +127,12 @@
 
         <!-- Signup Form -->
         <form class="auth-form" id="signupForm" style="display: none;">
-          <div class="form-group profile-image-group">
+          <div class="form-group">
             <div class="simple-avatar-selector" onclick="document.getElementById('avatarUpload').click()">
               <div class="avatar-circle" id="currentAvatar">
                 <i class="fas fa-user"></i>
               </div>
-              <span class="avatar-hint">Click to select image</span>
+              <span class="avatar-hint">Click to select profile image</span>
             </div>
             <input type="file" id="avatarUpload" accept="image/*" onchange="handleAvatarUpload(event)" style="display: none;">
           </div>
@@ -232,6 +233,25 @@
 
   <!-- Toast Notification Container -->
   <div class="toast-container" id="toastContainer"></div>
+
+  <!-- Custom Modal -->
+  <div class="custom-modal-overlay" id="customModalOverlay" style="display: none;">
+    <div class="custom-modal">
+      <div class="custom-modal-header">
+        <h3 id="customModalTitle">Notification</h3>
+        <button class="custom-modal-close" id="customModalClose">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+      <div class="custom-modal-body">
+        <p id="customModalMessage">Message content</p>
+      </div>
+      <div class="custom-modal-footer">
+        <button class="custom-modal-btn secondary" id="customModalCancel" style="display: none;">Cancel</button>
+        <button class="custom-modal-btn primary" id="customModalConfirm">OK</button>
+      </div>
+    </div>
+  </div>
 
   <!-- Custom JavaScript -->
   <script src="auth.js"></script>

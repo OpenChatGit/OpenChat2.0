@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 
 This project adheres to Keep a Changelog principles and uses semantic-ish versioning while pre-1.0. Breaking changes can still occur.
 
+---
+
 ## [0.1.2] - 2025-09-06
 
 > Experimental Notice: v0.1.2 is experimental. Features, APIs, and UI are subject to change without prior notice.
@@ -49,7 +51,61 @@ This project adheres to Keep a Changelog principles and uses semantic-ish versio
 
 ---
 
+## [0.1.3] - 2025-09-09
+
+> **Important Notice**: This version includes significant file structure changes due to Tauri static file serving limitations. Future versions will implement proper code separation once Tauri configuration issues are resolved.
+
+### Added
+- Complete authentication system with persistent account storage
+  - **File System Access API integration**: Users can create password-protected account folders on their local system
+  - **SHA-256 password hashing**: Secure password storage with Web Crypto API
+  - **Profile image support**: Upload and store custom avatars with accounts
+  - **Login state persistence**: Automatic restoration of login status between app sessions
+  - **Account creation workflow**: Full signup process with form validation and error handling
+
+### Changed
+- **Authentication system file organization**: Moved auth files to `frontend/src/` due to Tauri limitations
+  - `frontend/static/js/auth.js` → `frontend/src/auth.js`
+  - `frontend/static/css/auth.css` → `frontend/src/auth.css`
+  - Updated `frontend/src/index.html` to reference local auth files
+- **Profile UI improvements**: 
+  - Updated guest profile icon from `fa-user` to `fa-user-circle` for better visual distinction
+  - Fixed profile avatar sizing issues in sidebar (32px constraint with proper image scaling)
+  - Improved avatar display with `object-fit: cover` and circular boundaries
+
+### Fixed
+- **Tauri static file serving issue**: Resolved "Unexpected token '<'" JavaScript errors
+  - **Root Cause**: Tauri's `frontendDist: "../src"` configuration prevented access to `frontend/static/` files
+  - **Solution**: Temporarily moved authentication files to `frontend/src/` for reliable loading
+  - Browser was receiving HTML error pages instead of JavaScript files when accessing static folder
+- **Authentication file loading**: Eliminated complex relative path issues in Tauri environment
+- **Profile image constraints**: Fixed oversized images breaking out of circular avatar boundaries
+
+### Technical Details
+- **AccountManager Class**: Handles persistent storage, password hashing, and file operations
+- **AuthUI Class**: Manages authentication interface, form validation, and user interactions
+- **File Structure**: Combined auth logic into single files for better maintainability
+- **Global Functions**: Maintained backward compatibility with existing onclick handlers
+
+### Known Issues & Future Plans
+- **Tauri Static File Limitation**: Current Tauri configuration (`frontendDist: "../src"`) prevents proper static folder access
+  - This forces authentication files to be placed in `frontend/src/` instead of organized `frontend/static/` structure
+  - **Future Solution**: Will implement proper Tauri configuration or build process to enable clean code separation
+- **Planned Improvements**: 
+  - Better static asset organization once Tauri serving issues are resolved
+  - Enhanced code separation between authentication, UI, and core application logic
+  - Improved build process for static file management
+
+### Developer Notes
+- **File System Access API**: Requires user gesture (button click) to select directory
+- **Security**: Passwords are never stored in plain text, only SHA-256 hashes
+- **Browser Compatibility**: File System Access API requires modern browsers (Chrome 86+, Edge 86+)
+- **Account Storage**: Users control where accounts are stored on their local system
+
+---
+
 ## [Unreleased]
 - About dialog showing product name, version, and backend status
 - Persist selected model per conversation and display next to the title
 - Optional character-based cap for very long histories
+- Proper static file organization once Tauri configuration is resolved
