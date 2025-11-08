@@ -498,7 +498,8 @@ export function Canvas({
         
         // Smart file management: update existing files or add new ones
         const updatedFiles: FileItem[] = []
-        const existingFileMap = new Map(files.map(f => [f.name, f]))
+        const existingFileMap = new Map(files.map(f => [f.name.toLowerCase(), f]))
+        const processedFiles = new Set<string>()
         
         allCodeBlocks.forEach((block: any, index: number) => {
           // Generate filename with better fallback logic
@@ -539,16 +540,34 @@ export function Canvas({
             console.log('[Canvas] 🏷️ Generated default filename:', fileName)
           }
           
-          const existingFile = existingFileMap.get(fileName)
+          // Check for existing file (case-insensitive)
+          const fileNameLower = fileName.toLowerCase()
+          const existingFile = existingFileMap.get(fileNameLower)
+          
+          // Also check if file with same language already exists (prevent duplicates)
+          const sameLanguageFile = files.find(f => 
+            f.language === block.language.toLowerCase() && 
+            !processedFiles.has(f.name.toLowerCase())
+          )
           
           if (existingFile) {
-            // Update existing file
-            console.log('[Canvas] 🔄 Updating file:', fileName, `(${block.code.length} chars)`)
+            // Update existing file (exact match)
+            console.log('[Canvas] 🔄 Updating existing file:', fileName, `(${block.code.length} chars)`)
             updatedFiles.push({
               ...existingFile,
               content: block.code,
               language: block.language.toLowerCase()
             })
+            processedFiles.add(fileNameLower)
+          } else if (sameLanguageFile && !block.filename) {
+            // Update file with same language (if no explicit filename provided)
+            console.log('[Canvas] 🔄 Updating file by language:', sameLanguageFile.name, '→', fileName, `(${block.code.length} chars)`)
+            updatedFiles.push({
+              ...sameLanguageFile,
+              content: block.code,
+              language: block.language.toLowerCase()
+            })
+            processedFiles.add(sameLanguageFile.name.toLowerCase())
           } else {
             // Create new file
             console.log('[Canvas] ➕ Adding new file:', fileName, block.language, `(${block.code.length} chars)`)
@@ -558,6 +577,15 @@ export function Canvas({
               language: block.language.toLowerCase(),
               content: block.code
             })
+            processedFiles.add(fileNameLower)
+          }
+        })
+        
+        // Add any existing files that weren't updated (keep them)
+        files.forEach(f => {
+          if (!processedFiles.has(f.name.toLowerCase())) {
+            console.log('[Canvas] ✅ Keeping existing file:', f.name)
+            updatedFiles.push(f)
           }
         })
         
@@ -874,16 +902,29 @@ export function Canvas({
         }
       }
 
-      // HTML - Show preview
-      if (detectedLanguage === 'html' || detectedLanguage === 'markup') {
+      // HTML - Show preview (also works if HTML file exists in multi-file project)
+      if (detectedLanguage === 'html' || detectedLanguage === 'markup' || 
+          (files.length > 0 && files.some(f => f.language === 'html'))) {
+        console.log('[Canvas] 🌐 Starting HTML preview with multi-file support')
         setOutput('PREVIEW_MODE')
         setIsPreviewMode(true)
         setIsRunning(false)
         return
       }
 
-      // CSS - Show preview with sample HTML
+      // CSS - Show preview (if HTML file exists, use it; otherwise show sample)
       if (detectedLanguage === 'css') {
+        console.log('[Canvas] 🎨 Starting CSS preview')
+        setOutput('PREVIEW_MODE')
+        setIsPreviewMode(true)
+        setIsRunning(false)
+        return
+      }
+      
+      // JavaScript/TypeScript - If HTML file exists, show preview; otherwise execute
+      if ((detectedLanguage === 'javascript' || detectedLanguage === 'typescript') && 
+          files.length > 0 && files.some(f => f.language === 'html')) {
+        console.log('[Canvas] 🌐 Starting JS preview with HTML')
         setOutput('PREVIEW_MODE')
         setIsPreviewMode(true)
         setIsRunning(false)
@@ -1978,16 +2019,33 @@ export function Canvas({
                       backgroundColor: previewDarkMode ? 'var(--color-background)' : '#ffffff'
                     }}
                   >
-                    {detectedLanguage === 'html' || detectedLanguage === 'markup' ? (
+                    {(detectedLanguage === 'html' || detectedLanguage === 'markup' || 
+                      (files.length > 0 && files.some(f => f.language === 'html'))) ? (
                       <iframe
                         srcDoc={(() => {
                           // Build complete HTML with all related files
+                          // Find HTML file (current or from files array)
                           let htmlContent = code
+                          
+                          // If current file is not HTML, find HTML file in files array
+                          if (detectedLanguage !== 'html' && detectedLanguage !== 'markup') {
+                            const htmlFile = files.find(f => f.language === 'html')
+                            if (htmlFile) {
+                              htmlContent = htmlFile.content
+                              console.log('[Canvas] 📄 Using HTML file for preview:', htmlFile.name)
+                            }
+                          }
                           
                           // If we have multiple files, inject CSS and JS
                           if (files.length > 1) {
                             const cssFiles = files.filter(f => f.language === 'css')
                             const jsFiles = files.filter(f => f.language === 'javascript' || f.language === 'typescript')
+                            
+                            console.log('[Canvas] 🎨 Injecting files:', {
+                              html: htmlContent.length,
+                              css: cssFiles.length,
+                              js: jsFiles.length
+                            })
                             
                             // Inject CSS into <head>
                             if (cssFiles.length > 0) {
@@ -1997,10 +2055,13 @@ export function Canvas({
                               // Try to inject before </head>
                               if (htmlContent.includes('</head>')) {
                                 htmlContent = htmlContent.replace('</head>', `${styleTag}\n</head>`)
+                              } else if (htmlContent.includes('<head>')) {
+                                htmlContent = htmlContent.replace('<head>', `<head>\n${styleTag}`)
                               } else {
-                                // No </head>, add at the beginning
+                                // No <head>, add at the beginning
                                 htmlContent = styleTag + '\n' + htmlContent
                               }
+                              console.log('[Canvas] ✅ CSS injected')
                             }
                             
                             // Inject JS before </body>
@@ -2011,10 +2072,14 @@ export function Canvas({
                               // Try to inject before </body>
                               if (htmlContent.includes('</body>')) {
                                 htmlContent = htmlContent.replace('</body>', `${scriptTag}\n</body>`)
+                              } else if (htmlContent.includes('<body>')) {
+                                // No </body>, add after <body>
+                                htmlContent = htmlContent.replace('</body>', `${scriptTag}\n</body>`)
                               } else {
                                 // No </body>, add at the end
                                 htmlContent = htmlContent + '\n' + scriptTag
                               }
+                              console.log('[Canvas] ✅ JS injected')
                             }
                           }
                           
