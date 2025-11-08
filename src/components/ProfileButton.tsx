@@ -1,8 +1,9 @@
 import { useState, useRef, useEffect } from 'react'
-import { Settings, User, LogOut, HelpCircle, LogIn } from 'lucide-react'
+import { Settings, User, LogOut, HelpCircle, LogIn, Sparkles } from 'lucide-react'
 import { cn } from '../lib/utils'
 import { useAuth } from '../hooks/useAuth'
 import { LoginModal } from './LoginModal'
+import { UpgradeModal } from './UpgradeModal'
 
 interface ProfileButtonProps {
   onOpenSettings: () => void
@@ -42,6 +43,7 @@ function AvatarWithFallback({ src, alt, size }: { src?: string; alt: string; siz
 export function ProfileButton({ onOpenSettings }: ProfileButtonProps) {
   const [isOpen, setIsOpen] = useState(false)
   const [showLoginModal, setShowLoginModal] = useState(false)
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false)
   const dropupRef = useRef<HTMLDivElement>(null)
   const { user, isAuthenticated, login, logout } = useAuth()
 
@@ -60,6 +62,15 @@ export function ProfileButton({ onOpenSettings }: ProfileButtonProps) {
   }, [isOpen])
 
   const menuItems = isAuthenticated ? [
+    {
+      icon: Sparkles,
+      label: 'Upgrade',
+      onClick: () => {
+        setShowUpgradeModal(true)
+        setIsOpen(false)
+      },
+      highlight: !user?.isPro
+    },
     {
       icon: Settings,
       label: 'Settings',
@@ -87,6 +98,15 @@ export function ProfileButton({ onOpenSettings }: ProfileButtonProps) {
     }
   ] : [
     {
+      icon: Sparkles,
+      label: 'Upgrade',
+      onClick: () => {
+        setShowUpgradeModal(true)
+        setIsOpen(false)
+      },
+      highlight: true
+    },
+    {
       icon: LogIn,
       label: 'Login',
       onClick: () => {
@@ -110,6 +130,12 @@ export function ProfileButton({ onOpenSettings }: ProfileButtonProps) {
         isOpen={showLoginModal}
         onClose={() => setShowLoginModal(false)}
         onLogin={login}
+      />
+      
+      <UpgradeModal
+        isOpen={showUpgradeModal}
+        onClose={() => setShowUpgradeModal(false)}
+        currentPlan={user?.isPro ? 'pro' : 'free'}
       />
       
       <div ref={dropupRef} className="relative">
@@ -140,19 +166,26 @@ export function ProfileButton({ onOpenSettings }: ProfileButtonProps) {
           )}
 
           {/* Menu Items */}
-          <div className="py-1">
+          <div className="py-1 px-2">
             {menuItems.map((item, index) => (
               <button
                 key={index}
                 onClick={item.onClick}
                 className={cn(
-                  'w-full flex items-center gap-3 px-4 py-2.5 text-sm transition-colors',
-                  'hover:bg-white/10',
+                  'w-full flex items-center gap-3 px-3 py-2.5 text-sm transition-colors rounded-lg',
+                  item.highlight 
+                    ? 'bg-gradient-to-r from-blue-500/20 to-purple-500/20 font-semibold hover:from-blue-500/30 hover:to-purple-500/30'
+                    : 'hover:bg-white/10',
                   item.danger && 'text-red-400'
                 )}
               >
-                <item.icon className="w-4 h-4" />
+                <item.icon className={cn('w-4 h-4', item.highlight && 'text-blue-400')} />
                 <span>{item.label}</span>
+                {item.highlight && (
+                  <span className="ml-auto text-xs px-2 py-0.5 rounded-full bg-blue-500 text-white">
+                    New
+                  </span>
+                )}
               </button>
             ))}
           </div>

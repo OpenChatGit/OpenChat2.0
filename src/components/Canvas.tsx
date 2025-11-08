@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
-import { Play, Copy, Download, RotateCcw, Check, ChevronRight, ChevronLeft, Square, X, Sun, Moon, Terminal as TerminalIcon, MessageSquare, ChevronDown, Trash2, Edit2 } from 'lucide-react'
+import { Play, Copy, Download, RotateCcw, Check, ChevronRight, ChevronLeft, Square, X, Sun, Moon, Terminal as TerminalIcon, MessageSquare, ChevronDown, Trash2, Edit2, Package } from 'lucide-react'
 import editSquareIcon from '../assets/edit_square.svg'
 import { Terminal } from './Terminal'
 import { ChatMessage } from './ChatMessage'
@@ -130,15 +130,93 @@ export function Canvas({
   const [editingSessionId, setEditingSessionId] = useState<string | null>(null)
   const [editingSessionTitle, setEditingSessionTitle] = useState('')
   const [deletingSessionId, setDeletingSessionId] = useState<string | null>(null)
+  const [installedPackages, setInstalledPackages] = useState<string[]>([])
+  const [showPackageManager, setShowPackageManager] = useState(false)
+  const [packageToInstall, setPackageToInstall] = useState('')
+  const [isInstallingPackage, setIsInstallingPackage] = useState(false)
+  const [venvPath, setVenvPath] = useState<string>('')
+  const [nodeModulesPath, setNodeModulesPath] = useState<string>('')
+  const [showPackageDropdown, setShowPackageDropdown] = useState(false)
+  const [packageErrors, setPackageErrors] = useState<string[]>([])
   const resizeRef = useRef<HTMLDivElement>(null)
   const editorResizeRef = useRef<HTMLDivElement>(null)
   const sessionDropdownRef = useRef<HTMLDivElement>(null)
+  const packageDropdownRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     if (initialCode) {
       setCode(initialCode)
     }
   }, [initialCode])
+
+  // Setup and cleanup virtual environment when session changes
+  useEffect(() => {
+    const setupEnvironment = async () => {
+      if (!currentSession?.id) return
+      
+      try {
+        const { invoke } = await import('@tauri-apps/api/core')
+        
+        // Create isolated environment directory for this session
+        const sessionEnvDir = `.canvas_env_${currentSession.id}`
+        
+        // Setup Python virtual environment
+        if (detectedLanguage === 'python') {
+          console.log('[Canvas] Setting up Python venv for session:', currentSession.id)
+          try {
+            // Create venv
+            await invoke('run_terminal_command', {
+              command: `python -m venv ${sessionEnvDir}`,
+              workingDir: undefined
+            })
+            setVenvPath(sessionEnvDir)
+            console.log('[Canvas] Python venv created:', sessionEnvDir)
+          } catch (error) {
+            console.error('[Canvas] Failed to create venv:', error)
+          }
+        }
+        
+        // Setup Node.js environment
+        if (detectedLanguage === 'javascript' || detectedLanguage === 'typescript') {
+          console.log('[Canvas] Setting up Node.js environment for session:', currentSession.id)
+          setNodeModulesPath(sessionEnvDir)
+        }
+      } catch (error) {
+        console.error('[Canvas] Failed to setup environment:', error)
+      }
+    }
+    
+    setupEnvironment()
+    
+    // Cleanup function
+    return () => {
+      const cleanup = async () => {
+        if (!currentSession?.id) return
+        
+        try {
+          const { invoke } = await import('@tauri-apps/api/core')
+          const sessionEnvDir = `.canvas_env_${currentSession.id}`
+          
+          // Remove virtual environment directory
+          console.log('[Canvas] Cleaning up environment:', sessionEnvDir)
+          try {
+            await invoke('run_terminal_command', {
+              command: `rmdir /s /q ${sessionEnvDir}`,
+              workingDir: undefined
+            })
+            console.log('[Canvas] Environment cleaned up')
+          } catch (error) {
+            // Ignore cleanup errors
+            console.warn('[Canvas] Cleanup warning:', error)
+          }
+        } catch (error) {
+          console.error('[Canvas] Cleanup error:', error)
+        }
+      }
+      
+      cleanup()
+    }
+  }, [currentSession?.id, detectedLanguage])
 
   // Load code and language from session when session changes
   useEffect(() => {
@@ -157,6 +235,7 @@ export function Canvas({
       setCode('')
       setDetectedLanguage('none')
       setManualLanguageSet(false)
+      setInstalledPackages([]) // Reset installed packages
       console.log('[Canvas] New session - reset to defaults')
     }
   }, [currentSession?.id])
@@ -172,6 +251,22 @@ export function Canvas({
       return () => clearTimeout(timer)
     }
   }, [code, detectedLanguage, currentSession?.id, onSaveCanvasState])
+
+  // Close package dropdown when clicking outside
+  useEffect(() => {
+    if (!showPackageDropdown) return
+
+    const handleClickOutside = (event: MouseEvent) => {
+      if (packageDropdownRef.current && !packageDropdownRef.current.contains(event.target as Node)) {
+        setShowPackageDropdown(false)
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [showPackageDropdown])
 
   // Close session dropdown when clicking outside
   useEffect(() => {
@@ -582,10 +677,61 @@ export function Canvas({
           setOutput(`✗ Error: ${error instanceof Error ? error.message : 'Unknown error'}`)
         }
       }
-      // Python - execute via backend
+      // Python - execute via backend with auto package installation
       else if (detectedLanguage === 'python') {
         try {
           const { invoke } = await import('@tauri-apps/api/core')
+          
+          // Extract required packages from imports
+          const extractPythonPackages = (code: string): string[] => {
+            const packages: Set<string> = new Set()
+            const lines = code.split('\n')
+            
+            for (const line of lines) {
+              const trimmed = line.trim()
+              // Match: import package or from package import ...
+              const importMatch = trimmed.match(/^(?:import|from)\s+([a-zA-Z0-9_]+)/)
+              if (importMatch) {
+                const pkg = importMatch[1]
+                // Skip built-in modules
+                const builtins = ['os', 'sys', 'json', 'time', 'datetime', 'math', 'random', 
+                                 're', 'collections', 'itertools', 'functools', 'pathlib',
+                                 'typing', 'io', 'csv', 'urllib', 'http', 'socket', 'threading',
+                                 'multiprocessing', 'subprocess', 'argparse', 'logging', 'unittest',
+                                 'pickle', 'copy', 'enum', 'dataclasses', 'abc', 'contextlib',
+                                 'warnings', 'traceback', 'inspect', 'ast', 'dis', 'gc', 'weakref']
+                if (!builtins.includes(pkg)) {
+                  packages.add(pkg)
+                }
+              }
+            }
+            return Array.from(packages)
+          }
+          
+          // Extract packages (for future use - could show in UI)
+          extractPythonPackages(code)
+          
+          // Ensure virtual environment exists
+          let currentVenvPath = venvPath
+          if (!currentVenvPath) {
+            const sessionEnvDir = `.canvas_env_${currentSession?.id || 'default'}`
+            try {
+              setOutput('🔧 Setting up isolated Python environment...\n')
+              await invoke('run_terminal_command', {
+                command: `python -m venv ${sessionEnvDir}`,
+                workingDir: undefined
+              })
+              currentVenvPath = sessionEnvDir
+              setVenvPath(sessionEnvDir)
+              setOutput(prev => prev + '✓ Environment ready\n\n')
+            } catch (error) {
+              console.error('[Canvas] Failed to create venv:', error)
+              setOutput(prev => prev + '⚠️ Using system Python (not isolated)\n\n')
+            }
+          }
+          
+          // Use venv's Python if available
+          const pythonPath = currentVenvPath ? `${currentVenvPath}\\Scripts\\python` : 'python'
           
           // Create temp file path
           const tempFile = `temp_script_${Date.now()}.py`
@@ -596,11 +742,62 @@ export function Canvas({
             content: code 
           })
           
-          // Execute Python script
-          const result = await invoke<{ stdout: string; stderr: string; exit_code: number }>('run_terminal_command', {
-            command: `python ${tempFile}`,
+          // Try to execute Python script with venv Python
+          let result = await invoke<{ stdout: string; stderr: string; exit_code: number }>('run_terminal_command', {
+            command: `${pythonPath} ${tempFile}`,
             workingDir: undefined
           })
+          
+          // Check if execution failed due to missing packages
+          if (result.exit_code !== 0 && result.stderr) {
+            const missingPackages: string[] = []
+            
+            // Check for ModuleNotFoundError or ImportError
+            const moduleNotFoundMatch = result.stderr.match(/ModuleNotFoundError: No module named '([^']+)'/)
+            const importErrorMatch = result.stderr.match(/ImportError: No module named ([^\s]+)/)
+            
+            if (moduleNotFoundMatch) {
+              missingPackages.push(moduleNotFoundMatch[1])
+            } else if (importErrorMatch) {
+              missingPackages.push(importErrorMatch[1])
+            }
+            
+            // If we detected missing packages, try to install them in venv
+            if (missingPackages.length > 0) {
+              setOutput(`📦 Installing missing packages in isolated environment: ${missingPackages.join(', ')}...\n`)
+              
+              // Use venv's pip if available
+              const pipPath = currentVenvPath ? `${currentVenvPath}\\Scripts\\pip` : 'pip'
+              
+              for (const pkg of missingPackages) {
+                try {
+                  setOutput(prev => prev + `\n⏳ Installing ${pkg}...`)
+                  const installResult = await invoke<{ stdout: string; stderr: string; exit_code: number }>('run_terminal_command', {
+                    command: `${pipPath} install ${pkg}`,
+                    workingDir: undefined
+                  })
+                  
+                  if (installResult.exit_code === 0) {
+                    setOutput(prev => prev + ` ✓\n`)
+                    setInstalledPackages(prev => [...prev, pkg])
+                  } else {
+                    const errorMsg = `Auto-install failed for ${pkg}: ${installResult.stderr}`
+                    setOutput(prev => prev + ` ✗\n${installResult.stderr}\n`)
+                    setPackageErrors(prev => [...prev, errorMsg])
+                  }
+                } catch (installError) {
+                  setOutput(prev => prev + ` ✗ Failed to install\n`)
+                }
+              }
+              
+              // Retry execution after installing packages (use venv Python)
+              setOutput(prev => prev + `\n⏳ Retrying execution...\n\n`)
+              result = await invoke<{ stdout: string; stderr: string; exit_code: number }>('run_terminal_command', {
+                command: `${pythonPath} ${tempFile}`,
+                workingDir: undefined
+              })
+            }
+          }
           
           // Clean up temp file
           try {
@@ -624,7 +821,13 @@ export function Canvas({
             output += (output ? '\n' : '') + `\n✗ Exit code: ${result.exit_code}`
           }
           
-          setOutput(output || '✓ Python script executed successfully (no output)')
+          setOutput(prev => {
+            // If we already have installation output, append execution output
+            if (prev.includes('📦 Installing')) {
+              return prev + output
+            }
+            return output || '✓ Python script executed successfully (no output)'
+          })
         } catch (error) {
           setOutput(`✗ Error executing Python: ${error instanceof Error ? error.message : 'Unknown error'}\n\nMake sure Python is installed and in your PATH.`)
         }
@@ -637,6 +840,98 @@ export function Canvas({
       setOutput(`✗ Error: ${error instanceof Error ? error.message : 'Unknown error'}`)
     } finally {
       setIsRunning(false)
+    }
+  }
+
+  const handleInstallPackage = async () => {
+    if (!packageToInstall.trim()) return
+    
+    setIsInstallingPackage(true)
+    const pkg = packageToInstall.trim()
+    
+    try {
+      const { invoke } = await import('@tauri-apps/api/core')
+      
+      // Ensure virtual environment exists
+      if (!venvPath && detectedLanguage === 'python') {
+        const sessionEnvDir = `.canvas_env_${currentSession?.id || 'default'}`
+        try {
+          await invoke('run_terminal_command', {
+            command: `python -m venv ${sessionEnvDir}`,
+            workingDir: undefined
+          })
+          setVenvPath(sessionEnvDir)
+        } catch (error) {
+          console.error('[Canvas] Failed to create venv:', error)
+        }
+      }
+      
+      // Determine package manager and command based on language
+      let installCommand = ''
+      if (detectedLanguage === 'python') {
+        // Use venv's pip to install in isolated environment
+        const pipPath = venvPath ? `${venvPath}\\Scripts\\pip` : 'pip'
+        installCommand = `${pipPath} install ${pkg}`
+      } else if (detectedLanguage === 'javascript' || detectedLanguage === 'typescript') {
+        // Install to local node_modules in session directory
+        const sessionEnvDir = nodeModulesPath || `.canvas_env_${currentSession?.id || 'default'}`
+        installCommand = `npm install ${pkg} --prefix ${sessionEnvDir}`
+        if (!nodeModulesPath) setNodeModulesPath(sessionEnvDir)
+      } else {
+        setOutput(`⚠️ Package installation not supported for ${detectedLanguage}`)
+        setIsInstallingPackage(false)
+        return
+      }
+      
+      setOutput(`📦 Installing ${pkg} in isolated environment...\n`)
+      
+      const result = await invoke<{ stdout: string; stderr: string; exit_code: number }>('run_terminal_command', {
+        command: installCommand,
+        workingDir: undefined
+      })
+      
+      if (result.exit_code === 0) {
+        setOutput(prev => prev + `✓ Successfully installed ${pkg} (sandboxed)\n\n${result.stdout}`)
+        setInstalledPackages(prev => [...prev, pkg])
+        setPackageToInstall('')
+      } else {
+        const errorMsg = `Failed to install ${pkg}: ${result.stderr}`
+        setOutput(prev => prev + `✗ ${errorMsg}\n`)
+        setPackageErrors(prev => [...prev, errorMsg])
+      }
+    } catch (error) {
+      const errorMsg = `Error installing package: ${error instanceof Error ? error.message : 'Unknown error'}`
+      setOutput(`✗ ${errorMsg}`)
+      setPackageErrors(prev => [...prev, errorMsg])
+    } finally {
+      setIsInstallingPackage(false)
+    }
+  }
+
+  const handleCleanupEnvironment = async () => {
+    if (!currentSession?.id) return
+    
+    try {
+      const { invoke } = await import('@tauri-apps/api/core')
+      const sessionEnvDir = `.canvas_env_${currentSession.id}`
+      
+      setOutput('🧹 Cleaning up isolated environment...\n')
+      
+      try {
+        await invoke('run_terminal_command', {
+          command: `rmdir /s /q ${sessionEnvDir}`,
+          workingDir: undefined
+        })
+        setOutput(prev => prev + '✓ Environment cleaned up\n')
+        setVenvPath('')
+        setNodeModulesPath('')
+        setInstalledPackages([])
+        setPackageErrors([])
+      } catch (error) {
+        setOutput(prev => prev + '⚠️ No environment to clean up\n')
+      }
+    } catch (error) {
+      setOutput(`✗ Error cleaning up: ${error instanceof Error ? error.message : 'Unknown error'}`)
     }
   }
 
@@ -962,6 +1257,16 @@ export function Canvas({
                 </span>
               </div>
               <div className="flex items-center gap-1">
+                {/* Package Manager Button - Only for Python/JS/TS */}
+                {(detectedLanguage === 'python' || detectedLanguage === 'javascript' || detectedLanguage === 'typescript') && (
+                  <button
+                    onClick={() => setShowPackageManager(!showPackageManager)}
+                    className={`p-1.5 rounded-lg hover:bg-white/10 transition-colors ${showPackageManager ? 'bg-primary/20' : ''}`}
+                    title="Package Manager"
+                  >
+                    <Package className="w-3.5 h-3.5" />
+                  </button>
+                )}
                 <button
                   onClick={handleReset}
                   className="p-1.5 rounded-lg hover:bg-white/10 transition-colors"
@@ -1010,6 +1315,64 @@ export function Canvas({
                 </button>
               </div>
             </div>
+            
+            {/* Package Manager Panel */}
+            {showPackageManager && (
+              <div className="px-4 py-3 border-b bg-muted/20" style={{ borderColor: 'var(--color-dropdown-border)' }}>
+                <div className="flex items-center gap-2 mb-2">
+                  <input
+                    type="text"
+                    value={packageToInstall}
+                    onChange={(e) => setPackageToInstall(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && !isInstallingPackage) {
+                        handleInstallPackage()
+                      }
+                    }}
+                    placeholder={detectedLanguage === 'python' ? 'Package name (e.g., requests, numpy)' : 'Package name (e.g., axios, lodash)'}
+                    className="flex-1 px-3 py-1.5 text-sm rounded-lg border bg-background"
+                    style={{
+                      backgroundColor: 'var(--color-background)',
+                      borderColor: 'var(--color-dropdown-border)',
+                      color: 'var(--color-foreground)'
+                    }}
+                    disabled={isInstallingPackage}
+                  />
+                  <button
+                    onClick={handleInstallPackage}
+                    disabled={isInstallingPackage || !packageToInstall.trim()}
+                    className="px-3 py-1.5 text-sm rounded-lg bg-primary text-primary-foreground hover:opacity-90 transition-opacity disabled:opacity-50"
+                  >
+                    {isInstallingPackage ? 'Installing...' : 'Install'}
+                  </button>
+                  <button
+                    onClick={handleCleanupEnvironment}
+                    disabled={isInstallingPackage}
+                    className="px-3 py-1.5 text-sm rounded-lg bg-red-500/80 text-white hover:bg-red-500 transition-colors disabled:opacity-50"
+                    title="Clean up isolated environment and remove all packages"
+                  >
+                    Clean
+                  </button>
+                </div>
+                <div className="flex items-center justify-between text-xs">
+                  {installedPackages.length > 0 ? (
+                    <div className="text-muted-foreground">
+                      📦 Installed: {installedPackages.join(', ')}
+                    </div>
+                  ) : (
+                    <div className="text-muted-foreground">
+                      No packages installed yet
+                    </div>
+                  )}
+                  {(venvPath || nodeModulesPath) && (
+                    <div className="text-green-400 text-xs">
+                      🔒 Sandboxed
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+            
             <div className="flex-1 overflow-auto canvas-editor" style={{ backgroundColor: 'var(--color-background)' }}>
               <Editor
                 value={code}
@@ -1067,6 +1430,109 @@ export function Canvas({
               <div className="px-4 py-2.5 border-b text-sm font-medium bg-muted/30 h-10 flex items-center justify-between" style={{ borderColor: 'var(--color-dropdown-border)' }}>
                 <span>{showTerminal ? 'Terminal' : 'Output'}</span>
                 <div className="flex items-center gap-1">
+                  {/* Package Manager Dropdown */}
+                  {(detectedLanguage === 'python' || detectedLanguage === 'javascript' || detectedLanguage === 'typescript') && (
+                    <div className="relative" ref={packageDropdownRef}>
+                      <button
+                        onClick={() => setShowPackageDropdown(!showPackageDropdown)}
+                        className={`p-1.5 rounded-lg hover:bg-white/10 transition-colors relative ${showPackageDropdown ? 'bg-primary/20' : ''}`}
+                        title="Package Manager"
+                      >
+                        <Package className="w-3.5 h-3.5" />
+                        {installedPackages.length > 0 && (
+                          <span className="absolute -top-1 -right-1 w-4 h-4 bg-green-500 text-white text-[10px] rounded-full flex items-center justify-center">
+                            {installedPackages.length}
+                          </span>
+                        )}
+                        {packageErrors.length > 0 && (
+                          <span className="absolute -bottom-1 -right-1 w-3 h-3 bg-red-500 rounded-full" />
+                        )}
+                      </button>
+                      
+                      {/* Package Dropdown */}
+                      {showPackageDropdown && (
+                        <div 
+                          className="absolute top-full right-0 mt-2 w-80 rounded-lg shadow-lg border overflow-hidden z-50"
+                          style={{
+                            backgroundColor: 'var(--color-sidebar)',
+                            borderColor: 'var(--color-dropdown-border)',
+                            maxHeight: '400px'
+                          }}
+                        >
+                          {/* Header */}
+                          <div className="px-4 py-3 border-b font-semibold" style={{ borderColor: 'var(--color-dropdown-border)' }}>
+                            Package Manager
+                          </div>
+                          
+                          {/* Installed Packages */}
+                          <div className="px-4 py-3 border-b" style={{ borderColor: 'var(--color-dropdown-border)' }}>
+                            <div className="text-xs font-semibold text-muted-foreground mb-2">
+                              Installed Packages ({installedPackages.length})
+                            </div>
+                            {installedPackages.length > 0 ? (
+                              <div className="space-y-1 max-h-40 overflow-y-auto">
+                                {installedPackages.map((pkg, index) => (
+                                  <div 
+                                    key={index}
+                                    className="flex items-center gap-2 px-2 py-1.5 rounded bg-green-500/10 text-sm"
+                                  >
+                                    <Check className="w-3.5 h-3.5 text-green-500 flex-shrink-0" />
+                                    <span className="flex-1 truncate">{pkg}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
+                              <div className="text-xs text-muted-foreground italic">
+                                No packages installed yet
+                              </div>
+                            )}
+                          </div>
+                          
+                          {/* Errors */}
+                          {packageErrors.length > 0 && (
+                            <div className="px-4 py-3 border-b" style={{ borderColor: 'var(--color-dropdown-border)' }}>
+                              <div className="text-xs font-semibold text-red-400 mb-2">
+                                Errors ({packageErrors.length})
+                              </div>
+                              <div className="space-y-1 max-h-32 overflow-y-auto">
+                                {packageErrors.map((error, index) => (
+                                  <div 
+                                    key={index}
+                                    className="px-2 py-1.5 rounded bg-red-500/10 text-xs text-red-400"
+                                  >
+                                    {error}
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                          
+                          {/* Actions */}
+                          <div className="px-4 py-3 flex gap-2">
+                            <button
+                              onClick={() => {
+                                setPackageErrors([])
+                                setShowPackageDropdown(false)
+                              }}
+                              className="flex-1 px-3 py-1.5 text-xs rounded-lg bg-white/10 hover:bg-white/20 transition-colors"
+                            >
+                              Clear Errors
+                            </button>
+                            <button
+                              onClick={() => {
+                                handleCleanupEnvironment()
+                                setShowPackageDropdown(false)
+                              }}
+                              className="flex-1 px-3 py-1.5 text-xs rounded-lg bg-red-500/80 text-white hover:bg-red-500 transition-colors"
+                            >
+                              Clean All
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  
                   <button
                     onClick={() => setShowTerminal(!showTerminal)}
                     className={`p-1.5 rounded-lg hover:bg-white/10 transition-colors ${showTerminal ? 'bg-primary/20' : ''}`}
@@ -1152,12 +1618,71 @@ export function Canvas({
                               <style>
                                 body { background-color: #1a1a1a; color: #e5e5e5; margin: 0; padding: 0; }
                               </style>
+                              <script>
+                                // Prevent navigation and form submissions from breaking the preview
+                                document.addEventListener('DOMContentLoaded', function() {
+                                  // Prevent all links from navigating
+                                  document.addEventListener('click', function(e) {
+                                    if (e.target.tagName === 'A' || e.target.closest('a')) {
+                                      e.preventDefault();
+                                      console.log('Link click prevented in preview mode');
+                                    }
+                                  }, true);
+                                  
+                                  // Prevent form submissions
+                                  document.addEventListener('submit', function(e) {
+                                    e.preventDefault();
+                                    console.log('Form submission prevented in preview mode');
+                                  }, true);
+                                  
+                                  // Prevent window.location changes
+                                  const originalLocation = window.location;
+                                  Object.defineProperty(window, 'location', {
+                                    get: function() { return originalLocation; },
+                                    set: function(val) { console.log('Navigation prevented in preview mode'); }
+                                  });
+                                });
+                              </script>
                             </head>
                             <body>${code}</body>
                           </html>
-                        ` : code}
+                        ` : `
+                          <!DOCTYPE html>
+                          <html>
+                            <head>
+                              <meta charset="UTF-8">
+                              <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                              <script>
+                                // Prevent navigation and form submissions from breaking the preview
+                                document.addEventListener('DOMContentLoaded', function() {
+                                  // Prevent all links from navigating
+                                  document.addEventListener('click', function(e) {
+                                    if (e.target.tagName === 'A' || e.target.closest('a')) {
+                                      e.preventDefault();
+                                      console.log('Link click prevented in preview mode');
+                                    }
+                                  }, true);
+                                  
+                                  // Prevent form submissions
+                                  document.addEventListener('submit', function(e) {
+                                    e.preventDefault();
+                                    console.log('Form submission prevented in preview mode');
+                                  }, true);
+                                  
+                                  // Prevent window.location changes
+                                  const originalLocation = window.location;
+                                  Object.defineProperty(window, 'location', {
+                                    get: function() { return originalLocation; },
+                                    set: function(val) { console.log('Navigation prevented in preview mode'); }
+                                  });
+                                });
+                              </script>
+                            </head>
+                            <body>${code}</body>
+                          </html>
+                        `}
                         className="w-full h-full border-0"
-                        sandbox="allow-scripts allow-same-origin"
+                        sandbox="allow-scripts"
                         title="HTML Preview"
                         style={{
                           pointerEvents: isResizingEditor ? 'none' : 'auto',
@@ -1181,6 +1706,24 @@ export function Canvas({
                                 }
                                 ${code}
                               </style>
+                              <script>
+                                // Prevent navigation and form submissions from breaking the preview
+                                document.addEventListener('DOMContentLoaded', function() {
+                                  // Prevent all links from navigating
+                                  document.addEventListener('click', function(e) {
+                                    if (e.target.tagName === 'A' || e.target.closest('a')) {
+                                      e.preventDefault();
+                                      console.log('Link click prevented in preview mode');
+                                    }
+                                  }, true);
+                                  
+                                  // Prevent form submissions
+                                  document.addEventListener('submit', function(e) {
+                                    e.preventDefault();
+                                    console.log('Form submission prevented in preview mode');
+                                  }, true);
+                                });
+                              </script>
                             </head>
                             <body>
                               <h1>CSS Preview</h1>
@@ -1200,7 +1743,7 @@ export function Canvas({
                           </html>
                         `}
                         className="w-full h-full border-0"
-                        sandbox="allow-scripts allow-same-origin"
+                        sandbox="allow-scripts"
                         title="CSS Preview"
                         style={{
                           pointerEvents: isResizingEditor ? 'none' : 'auto',

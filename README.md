@@ -149,6 +149,13 @@ The removed features were either:
 - **Token Usage Tracking** – Detailed consumption metrics (input/output/total) per response
 - **Syntax Highlighting** – Persistent Prism.js highlighting across navigation and reloads
 
+### 💎 Subscription Plans
+- **Free Forever** – Unlimited local AI models, Canvas, and code execution (100% free)
+- **Pro ($9.99/mo)** – 1,000 SERP web searches per month for enhanced research
+- **Pro+ ($19.99/mo)** – 3,000 SERP searches + API access and team features
+- **Upgrade Modal** – Beautiful, modern pricing cards with clear feature breakdown
+- **Flexible Billing** – Monthly subscriptions with 14-day money-back guarantee
+
 ### 🔍 Web Search (100% Free)
 - **No API Keys Required** – Completely free web search using DuckDuckGo
 - **Intelligent Auto-Detection** – Automatically determines when search would be helpful
@@ -357,9 +364,12 @@ OpenChat features a revolutionary Canvas mode with **LIVE code streaming** and a
 - **Persistent Language Recognition** – Canvas remembers programming languages across sessions and reloads
 - **Multi-Language Support** – 20+ languages including Python, JavaScript, TypeScript, Java, C++, Rust, Go, Ruby, PHP, Swift, Kotlin, C#, SQL, Bash, and more
 - **Real-Time Execution** – Run code directly with instant output display
+- **Auto Package Installation** – Automatically detects and installs missing Python packages in isolated environment
+- **Sandboxed Package Manager** – Install packages in isolated venv/node_modules (never touches system)
 - **Resizable Interface** – Adjust chat sidebar and editor widths with smooth drag-and-drop
 - **Code Management** – Copy, download, and reset code with convenient toolbar buttons
 - **Syntax Highlighting** – Powered by Prism.js with automatic language detection
+- **Safe Preview Mode** – HTML/CSS previews are sandboxed to prevent navigation and protect the Canvas
 
 ### 🚀 How It Works
 
@@ -391,8 +401,45 @@ def fibonacci(n):
 2. **Ask for Code** – Request the AI to write code in any supported language
 3. **Watch It Stream** – Code appears in real-time as the AI writes it
 4. **Run & Test** – Execute code directly in the canvas with instant output
-5. **Chat & Iterate** – Continue chatting to refine and improve the code
-6. **Exit Canvas** – Return to normal chat mode anytime
+5. **Auto Package Install** – Missing Python packages are automatically detected and installed
+6. **Manual Package Install** – Click the package icon (📦) to manually install dependencies
+7. **Chat & Iterate** – Continue chatting to refine and improve the code
+8. **Exit Canvas** – Return to normal chat mode anytime
+
+### 📦 Package Management (Sandboxed)
+
+**🔒 Isolated Environment:**
+Each Canvas session has its own isolated environment:
+- **Python**: Virtual environment (venv) created per session
+- **Node.js**: Local node_modules directory per session
+- **Automatic Cleanup**: Environment is deleted when session ends or code is cleared
+- **No System Pollution**: Packages are never installed globally on your system
+
+**Automatic Installation (Python):**
+When you run Python code that imports a missing package, Canvas will:
+1. Create an isolated virtual environment (if not exists)
+2. Detect the `ModuleNotFoundError`
+3. Automatically install the missing package via `pip` in the venv
+4. Retry execution with the newly installed package
+
+**Manual Installation:**
+1. Click the package icon (📦) in the editor toolbar
+2. Enter the package name (e.g., `requests`, `numpy`, `axios`)
+3. Click "Install" or press Enter
+4. The package will be installed in the isolated environment:
+   - Python: `venv/Scripts/pip install <package>`
+   - JavaScript/TypeScript: `npm install <package> --prefix .canvas_env`
+
+**Environment Cleanup:**
+- Click "Clean" button to manually remove all packages and the environment
+- Environment is automatically deleted when:
+  - You switch to a different Canvas session
+  - You exit Canvas mode
+  - You close the application
+
+**Supported Package Managers:**
+- Python: pip (in virtual environment)
+- Node.js: npm (local installation)
 
 ### 🏗️ Technical Architecture
 
