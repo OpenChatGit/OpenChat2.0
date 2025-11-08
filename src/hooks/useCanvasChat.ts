@@ -55,6 +55,7 @@ export function useCanvasChat() {
   const [canvasToolsEnabled, setCanvasToolsEnabled] = useState(true)
   const lastProcessedCodeRef = useRef<string>('')
   const currentCodeBlockRef = useRef<{ language: string; code: string } | null>(null)
+  const processedBlocksRef = useRef<Set<string>>(new Set()) // Track which blocks we've already sent
 
   // Save sessions to localStorage
   useEffect(() => {
@@ -144,44 +145,213 @@ export function useCanvasChat() {
 
     const supportedLanguages = ['javascript', 'typescript', 'python', 'html', 'css', 'java', 'cpp', 'c', 'rust', 'go', 'ruby', 'php', 'swift', 'kotlin', 'csharp', 'bash', 'shell', 'sql', 'json', 'yaml', 'xml']
 
-    // Check if we're inside a code block
-    const codeBlockStart = /```(\w+)\n/g
-    const matches = Array.from(content.matchAll(codeBlockStart))
+    // Extract ALL code blocks - handle both closed and open blocks
+    const allCodeBlocks: Array<{ language: string; code: string; filename?: string }> = []
     
-    if (matches.length > 0) {
-      // Get the FIRST code block (main code)
-      const firstMatch = matches[0]
-      const language = firstMatch[1].toLowerCase()
+    // Debug: Log the content to see what we're working with
+    console.log('[Canvas Chat] Content length:', content.length)
+    console.log('[Canvas Chat] Content preview:', content.substring(0, 500))
+    
+    // Split content by code block markers and markdown headings
+    // This handles cases where AI doesn't close code blocks properly
+    const codeBlockRegex = /```(\w+)(?:\s*\n|\s|$)/g
+    const blockStarts: Array<{ index: number; language: string; matchLength: number }> = []
+    
+    let match
+    while ((match = codeBlockRegex.exec(content)) !== null) {
+      blockStarts.push({
+        index: match.index + match[0].length,
+        language: match[1].toLowerCase(),
+        matchLength: match[0].length
+      })
+      console.log('[Canvas Chat] Found code block start:', match[1], 'at index', match.index)
+    }
+    
+    console.log('[Canvas Chat] Total code block starts found:', blockStarts.length)
+    
+    // Debug: Show what we're looking at
+    if (blockStarts.length === 0) {
+      console.log('[Canvas Chat] ⚠️ No code blocks found! Content preview:')
+      console.log(content.substring(0, 500))
+    } else if (blockStarts.length > 1) {
+      console.log('[Canvas Chat] 📋 Multiple blocks detected:')
+      blockStarts.forEach((start, i) => {
+        console.log(`  Block ${i + 1}: ${start.language} at position ${start.index}`)
+      })
+    }
+    
+    // Extract code for each block
+    for (let i = 0; i < blockStarts.length; i++) {
+      const start = blockStarts[i]
+      const language = start.language
       
-      if (supportedLanguages.includes(language)) {
-        // Extract code after the opening ```language
-        const startIndex = firstMatch.index! + firstMatch[0].length
-        const remainingContent = content.substring(startIndex)
+      // Find the end of this block
+      let endIndex: number
+      let isClosed = false
+      
+      // Look for closing ```
+      const closingIndex = content.indexOf('```', start.index)
+      
+      // Look for next code block start
+      const nextBlockIndex = i < blockStarts.length - 1 ? blockStarts[i + 1].index - 10 : -1
+      
+      // Look for markdown heading (### or ##)
+      const headingMatch = content.substring(start.index).match(/\n#{2,3}\s/)
+      const headingIndex = headingMatch && headingMatch.index !== undefined ? start.index + headingMatch.index : -1
+      
+      // Determine the actual end
+      if (closingIndex !== -1 && (closingIndex < nextBlockIndex || nextBlockIndex === -1) && (closingIndex < headingIndex || headingIndex === -1)) {
+        endIndex = closingIndex
+        isClosed = true
+      } else if (headingIndex !== -1 && (headingIndex < nextBlockIndex || nextBlockIndex === -1)) {
+        endIndex = headingIndex
+        isClosed = false
+      } else if (nextBlockIndex !== -1) {
+        endIndex = nextBlockIndex
+        isClosed = false
+      } else {
+        endIndex = content.length
+        isClosed = false
+      }
+      
+      const code = content.substring(start.index, endIndex).trim()
+      
+      console.log('[Canvas Chat] Block', i + 1, ':', language, `(${code.length} chars)`, isClosed ? 'CLOSED' : 'OPEN')
+      console.log('[Canvas Chat]   Start:', start.index, 'End:', endIndex, 'Method:', 
+                  closingIndex !== -1 && closingIndex === endIndex ? 'closing ```' :
+                  headingIndex !== -1 && headingIndex === endIndex ? 'heading' :
+                  nextBlockIndex !== -1 && nextBlockIndex === endIndex ? 'next block' : 'end of content')
+      console.log('[Canvas Chat]   Code preview:', code.substring(0, 100).replace(/\n/g, '\\n'))
+      
+      if (supportedLanguages.includes(language) && code.length > 0) {
+        // Try to extract filename from various sources
+        let filename: string | undefined
         
-        // Check if code block is closed
-        const endIndex = remainingContent.indexOf('```')
-        const code = endIndex !== -1 ? remainingContent.substring(0, endIndex) : remainingContent
-        
-        // Only update if code has changed
-        const codeHash = `${language}:${code}`
-        if (codeHash !== lastProcessedCodeRef.current && code.length > 0) {
-          lastProcessedCodeRef.current = codeHash
-          
-          console.log('[Canvas Chat] Streaming code to canvas:', language, `(${code.length} chars)`)
-          
-          // Dispatch event to Canvas component for LIVE streaming
-          const event = new CustomEvent('canvasCodeStream', {
-            detail: {
-              language,
-              code,
-              isComplete: !isStreaming && endIndex !== -1
-            }
-          })
-          window.dispatchEvent(event)
-          
-          // Update current code block reference
-          currentCodeBlockRef.current = { language, code }
+        // 1. Check for hidden tag format: {code_block_N_filename.ext}
+        if (start.index > 0) {
+          const beforeBlock = content.substring(Math.max(0, start.index - 100), start.index)
+          const tagMatch = beforeBlock.match(/\{code_block_\d+_([^}]+)\}/i)
+          if (tagMatch) {
+            filename = tagMatch[1].trim()
+            console.log('[Canvas Chat] ✓ Extracted filename from tag:', filename)
+          }
         }
+        
+        // 2. Check for filename in code comment (first line)
+        if (!filename) {
+          const commentMatch = code.match(/^(?:\/\/|#|<!--)\s*(?:filename:|file:)?\s*([^\n]+)/i)
+          if (commentMatch) {
+            filename = commentMatch[1].trim()
+            console.log('[Canvas Chat] ✓ Extracted filename from comment:', filename)
+          }
+        }
+        
+        // 3. Check for filename in markdown heading or bold text before this block
+        if (!filename && start.index > 0) {
+          const beforeBlock = content.substring(Math.max(0, start.index - 200), start.index)
+          
+          // Try multiple patterns
+          // Pattern 1: **filename.ext** or **filename**
+          let filenameMatch = beforeBlock.match(/\*\*([^\*]+\.(?:html|css|js|ts|py|java|cpp|rs|go|rb|php|swift|kt|cs|sql|sh|json|yaml|xml|md))\*\*/i)
+          
+          // Pattern 2: ### filename.ext or ## filename.ext
+          if (!filenameMatch) {
+            filenameMatch = beforeBlock.match(/#{2,3}\s*([^\s\n]+\.(?:html|css|js|ts|py|java|cpp|rs|go|rb|php|swift|kt|cs|sql|sh|json|yaml|xml|md))/i)
+          }
+          
+          // Pattern 3: (filename.ext) in parentheses
+          if (!filenameMatch) {
+            filenameMatch = beforeBlock.match(/\(([^\)]+\.(?:html|css|js|ts|py|java|cpp|rs|go|rb|php|swift|kt|cs|sql|sh|json|yaml|xml|md))\)/i)
+          }
+          
+          // Pattern 4: Just filename.ext at the end of a line
+          if (!filenameMatch) {
+            filenameMatch = beforeBlock.match(/([a-zA-Z0-9_-]+\.(?:html|css|js|ts|py|java|cpp|rs|go|rb|php|swift|kt|cs|sql|sh|json|yaml|xml|md))\s*$/i)
+          }
+          
+          if (filenameMatch) {
+            filename = filenameMatch[1].trim()
+            console.log('[Canvas Chat] ✓ Extracted filename from text:', filename)
+          }
+        }
+        
+        // Always add closed blocks (they're complete)
+        // For open blocks, only add if it's the last block and we're streaming
+        const isLastBlock = i === blockStarts.length - 1
+        const shouldAdd = isClosed || (!isClosed && isLastBlock && isStreaming)
+        
+        if (shouldAdd) {
+          allCodeBlocks.push({ language, code, filename })
+          
+          if (isClosed) {
+            console.log('[Canvas Chat] ✓ Added CLOSED block:', language, filename || 'no filename', `(${code.length} chars)`)
+          } else {
+            console.log('[Canvas Chat] ⏳ Added OPEN block:', language, filename || 'no filename', `(${code.length} chars)`)
+          }
+        } else {
+          console.log('[Canvas Chat] ⊘ Skipped:', language, 'Reason:', !isClosed ? 'not closed and not last' : 'unknown')
+        }
+      } else {
+        console.log('[Canvas Chat] ✗ Skipped block:', language, 'supported:', supportedLanguages.includes(language), 'has code:', code.length > 0)
+      }
+    }
+    
+    // If streaming and no blocks found yet, look for open blocks
+    // BUT: Only if we're actually streaming (isStreaming = true)
+    // AND: Only if we haven't found any closed blocks
+    if (isStreaming && allCodeBlocks.length === 0 && blockStarts.length > 0) {
+      // Only look for the LAST block if it's still open
+      const lastBlockStart = blockStarts[blockStarts.length - 1]
+      const afterLastBlock = content.substring(lastBlockStart.index)
+      const closingIndex = afterLastBlock.indexOf('```')
+      
+      if (closingIndex === -1) {
+        // Last block is still open
+        const code = afterLastBlock.trim()
+        const language = lastBlockStart.language
+        
+        if (supportedLanguages.includes(language) && code.length > 0) {
+          const filenameMatch = code.match(/^(?:\/\/|#|<!--)\s*(?:filename:|file:)?\s*([^\n]+)/i)
+          const filename = filenameMatch ? filenameMatch[1].trim() : undefined
+          
+          allCodeBlocks.push({ language, code, filename })
+          console.log('[Canvas Chat] Added open block (streaming):', language, `(${code.length} chars)`)
+        }
+      }
+    }
+    
+    console.log('[Canvas Chat] 📊 Final block count:', allCodeBlocks.length, 'Is streaming:', isStreaming)
+    
+    if (allCodeBlocks.length > 0) {
+      // Get the FIRST code block as main code
+      const firstBlock = allCodeBlocks[0]
+      
+      // Create a hash of all blocks to detect changes
+      const allBlocksHash = allCodeBlocks.map(b => `${b.language}:${b.code.length}`).join('|')
+      
+      // Only update if something has changed
+      if (allBlocksHash !== lastProcessedCodeRef.current) {
+        lastProcessedCodeRef.current = allBlocksHash
+        
+        console.log('[Canvas Chat] 📤 Sending to canvas:', allCodeBlocks.length, 'blocks')
+        console.log('[Canvas Chat] Main block:', firstBlock.language, `(${firstBlock.code.length} chars)`)
+        if (allCodeBlocks.length > 1) {
+          console.log('[Canvas Chat] Additional blocks:', allCodeBlocks.slice(1).map(b => `${b.language} (${b.code.length})`).join(', '))
+        }
+        
+        // Dispatch event to Canvas component for LIVE streaming
+        const event = new CustomEvent('canvasCodeStream', {
+          detail: {
+            language: firstBlock.language,
+            code: firstBlock.code,
+            isComplete: !isStreaming,
+            allCodeBlocks: allCodeBlocks // Always send all blocks
+          }
+        })
+        window.dispatchEvent(event)
+        
+        // Update current code block reference
+        currentCodeBlockRef.current = { language: firstBlock.language, code: firstBlock.code }
       }
     }
   }, [canvasToolsEnabled])
@@ -193,6 +363,11 @@ export function useCanvasChat() {
     model: string,
     images?: ImageAttachment[]
   ) => {
+    // Reset processed blocks for new message
+    processedBlocksRef.current.clear()
+    lastProcessedCodeRef.current = ''
+    console.log('[Canvas Chat] 🔄 Reset processed blocks for new message')
+    
     // Auto-create session if none exists
     let targetSession = currentSession
     if (!targetSession) {
@@ -238,13 +413,38 @@ export function useCanvasChat() {
       if (canvasToolsEnabled) {
         apiMessages.unshift({
           role: 'system',
-          content: `You are in Canvas Mode. When writing code, use markdown code blocks with the language specified.
-Example:
-\`\`\`javascript
-console.log('Hello World');
+          content: `You are in Canvas Mode - an interactive code editor.
+
+📁 MULTI-FILE FORMAT (REQUIRED for multiple files):
+When creating multiple files, use this EXACT format:
+
+{code_block_1_index.html}
+\`\`\`html
+<!DOCTYPE html>...
 \`\`\`
 
-The code will automatically appear in the interactive canvas editor. Always use proper language tags for code blocks.`,
+{code_block_2_styles.css}
+\`\`\`css
+body { ... }
+\`\`\`
+
+{code_block_3_script.js}
+\`\`\`javascript
+console.log('test');
+\`\`\`
+
+RULES:
+1. Use {code_block_N_filename.ext} BEFORE each code block
+2. N = sequential number (1, 2, 3...)
+3. filename.ext = actual filename with extension
+4. Each file appears as a separate tab
+
+SINGLE FILE:
+\`\`\`python
+print("Hello")
+\`\`\`
+
+Code appears automatically in the canvas editor.`,
           images: undefined
         })
       }

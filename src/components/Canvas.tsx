@@ -138,10 +138,23 @@ export function Canvas({
   const [nodeModulesPath, setNodeModulesPath] = useState<string>('')
   const [showPackageDropdown, setShowPackageDropdown] = useState(false)
   const [packageErrors, setPackageErrors] = useState<string[]>([])
+  
+  // Multi-file support
+  interface FileItem {
+    id: string
+    name: string
+    language: string
+    content: string
+  }
+  const [files, setFiles] = useState<FileItem[]>([])
+  const [currentFileId, setCurrentFileId] = useState<string | null>(null)
+  const [showFileExplorer, setShowFileExplorer] = useState(false)
+  
   const resizeRef = useRef<HTMLDivElement>(null)
   const editorResizeRef = useRef<HTMLDivElement>(null)
   const sessionDropdownRef = useRef<HTMLDivElement>(null)
   const packageDropdownRef = useRef<HTMLDivElement>(null)
+  const fileExplorerRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     if (initialCode) {
@@ -159,6 +172,8 @@ export function Canvas({
         
         // Create isolated environment directory for this session
         const sessionEnvDir = `.canvas_env_${currentSession.id}`
+        
+        console.log('[Canvas] 🔧 Environment directory:', sessionEnvDir)
         
         // Setup Python virtual environment
         if (detectedLanguage === 'python') {
@@ -252,6 +267,31 @@ export function Canvas({
     }
   }, [code, detectedLanguage, currentSession?.id, onSaveCanvasState])
 
+  // Debug: Log when files change
+  useEffect(() => {
+    console.log('[Canvas] Files updated:', files.length, files)
+    if (files.length > 0) {
+      console.log('[Canvas] Current file ID:', currentFileId)
+      console.log('[Canvas] Show file explorer:', showFileExplorer)
+    }
+  }, [files, currentFileId, showFileExplorer])
+
+  // Close file explorer when clicking outside
+  useEffect(() => {
+    if (!showFileExplorer) return
+
+    const handleClickOutside = (event: MouseEvent) => {
+      if (fileExplorerRef.current && !fileExplorerRef.current.contains(event.target as Node)) {
+        setShowFileExplorer(false)
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [showFileExplorer])
+
   // Close package dropdown when clicking outside
   useEffect(() => {
     if (!showPackageDropdown) return
@@ -343,16 +383,102 @@ export function Canvas({
       }
     }
     
-    // Handler for LIVE code streaming
+    // Helper function to get file extension from language
+    const getFileExtension = (lang: string): string => {
+      const extensions: Record<string, string> = {
+        javascript: 'js',
+        typescript: 'ts',
+        python: 'py',
+        html: 'html',
+        css: 'css',
+        json: 'json',
+        markdown: 'md',
+        java: 'java',
+        cpp: 'cpp',
+        rust: 'rs',
+        go: 'go'
+      }
+      return extensions[lang.toLowerCase()] || 'txt'
+    }
+    
+    // Handler for LIVE code streaming with multi-file support
     const handleCanvasCodeStream = (event: any) => {
-      const { language, code, isComplete } = event.detail
+      const { language, code, isComplete, allCodeBlocks } = event.detail
       console.log('[Canvas] 📡 Streaming code:', language, `(${code.length} chars)`, isComplete ? '✓ Complete' : '⏳ Streaming...')
+      console.log('[Canvas] 📁 All code blocks:', allCodeBlocks)
       
-      // Update code in real-time
-      setCode(code)
-      const normalizedLanguage = language.toLowerCase()
-      setDetectedLanguage(normalizedLanguage)
-      setManualLanguageSet(true)
+      // Check if we have multiple code blocks (or even just one in array format)
+      if (allCodeBlocks && Array.isArray(allCodeBlocks) && allCodeBlocks.length > 0) {
+        console.log('[Canvas] 📁 Files detected:', allCodeBlocks.length)
+        console.log('[Canvas] 📁 Block details:', allCodeBlocks.map((b: any) => `${b.language} (${b.filename || 'no name'})`).join(', '))
+        
+        // Smart file management: update existing files or add new ones
+        const updatedFiles: FileItem[] = []
+        const existingFileMap = new Map(files.map(f => [f.name, f]))
+        
+        allCodeBlocks.forEach((block: any, index: number) => {
+          const fileName = block.filename || `file${index + 1}.${getFileExtension(block.language)}`
+          const existingFile = existingFileMap.get(fileName)
+          
+          if (existingFile) {
+            // Update existing file
+            console.log('[Canvas] 🔄 Updating file:', fileName, `(${block.code.length} chars)`)
+            updatedFiles.push({
+              ...existingFile,
+              content: block.code,
+              language: block.language.toLowerCase()
+            })
+          } else {
+            // Create new file
+            console.log('[Canvas] ➕ Adding new file:', fileName, block.language, `(${block.code.length} chars)`)
+            updatedFiles.push({
+              id: `file-${Date.now()}-${index}`,
+              name: fileName,
+              language: block.language.toLowerCase(),
+              content: block.code
+            })
+          }
+        })
+        
+        console.log('[Canvas] ✅ Total files:', updatedFiles.length, updatedFiles.map(f => f.name).join(', '))
+        setFiles(updatedFiles)
+        
+        // Set first file as current if no file is selected yet
+        if (updatedFiles.length > 0 && !currentFileId) {
+          console.log('[Canvas] Setting initial file:', updatedFiles[0].name)
+          setCurrentFileId(updatedFiles[0].id)
+          setCode(updatedFiles[0].content)
+          setDetectedLanguage(updatedFiles[0].language)
+          setCurrentFilename(updatedFiles[0].name)
+          setManualLanguageSet(true)
+        } else if (currentFileId) {
+          // Update current file content if it was modified
+          const currentFile = updatedFiles.find(f => f.id === currentFileId)
+          if (currentFile && currentFile.content !== code) {
+            console.log('[Canvas] 🔄 Updating current file content:', currentFile.name)
+            setCode(currentFile.content)
+          }
+        }
+        
+        // Show file explorer when we have multiple files
+        if (updatedFiles.length > 1 && !showFileExplorer) {
+          console.log('[Canvas] 📂 Opening file explorer')
+          setShowFileExplorer(true)
+        }
+      } else {
+        // Single file - update code in real-time
+        console.log('[Canvas] Single file mode')
+        setCode(code)
+        const normalizedLanguage = language.toLowerCase()
+        setDetectedLanguage(normalizedLanguage)
+        setManualLanguageSet(true)
+        
+        // Clear files if switching to single file
+        if (files.length > 0) {
+          setFiles([])
+          setCurrentFileId(null)
+        }
+      }
       
       // Clear output when streaming starts
       if (!isComplete) {
@@ -1246,7 +1372,82 @@ export function Canvas({
                 >
                   {isChatSidebarCollapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
                 </button>
-                <span>Code</span>
+                
+                {/* File Explorer Dropdown - Debug */}
+                {files.length > 0 ? (
+                  <div className="relative" ref={fileExplorerRef}>
+                    <button
+                      onClick={() => {
+                        console.log('[Canvas] Toggling file explorer, current:', showFileExplorer)
+                        setShowFileExplorer(!showFileExplorer)
+                      }}
+                      className={cn(
+                        "flex items-center gap-1.5 px-2 py-1 rounded-lg hover:bg-white/10 transition-colors",
+                        showFileExplorer && "bg-primary/20"
+                      )}
+                      title="File Explorer"
+                    >
+                      <span className="text-xs font-medium">
+                        {files.find(f => f.id === currentFileId)?.name || 'Select File'}
+                      </span>
+                      <ChevronDown className={cn(
+                        "w-3 h-3 transition-transform",
+                        showFileExplorer && "rotate-180"
+                      )} />
+                      <span className="text-xs px-1.5 py-0.5 rounded-full bg-primary/30">
+                        {files.length}
+                      </span>
+                    </button>
+                    
+                    {/* File List Dropdown */}
+                    {showFileExplorer && (
+                      <div 
+                        className="absolute top-full left-0 mt-1 w-64 rounded-lg shadow-lg border overflow-hidden z-50"
+                        style={{
+                          backgroundColor: 'var(--color-sidebar)',
+                          borderColor: 'var(--color-dropdown-border)',
+                          maxHeight: '300px',
+                          overflowY: 'auto'
+                        }}
+                      >
+                        <div className="px-3 py-2 border-b text-xs font-semibold text-muted-foreground" style={{ borderColor: 'var(--color-dropdown-border)' }}>
+                          Files ({files.length})
+                        </div>
+                        {files.map((file) => (
+                          <button
+                            key={file.id}
+                            onClick={() => {
+                              setCurrentFileId(file.id)
+                              setCode(file.content)
+                              setDetectedLanguage(file.language)
+                              setCurrentFilename(file.name)
+                              setShowFileExplorer(false)
+                            }}
+                            className={cn(
+                              'w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-white/10 transition-colors',
+                              currentFileId === file.id && 'bg-primary/20'
+                            )}
+                          >
+                            <div className={cn(
+                              "w-2 h-2 rounded-full flex-shrink-0",
+                              file.language === 'html' && "bg-orange-500",
+                              file.language === 'css' && "bg-blue-500",
+                              file.language === 'javascript' && "bg-yellow-500",
+                              file.language === 'typescript' && "bg-blue-400",
+                              file.language === 'python' && "bg-green-500",
+                              !['html', 'css', 'javascript', 'typescript', 'python'].includes(file.language) && "bg-gray-500"
+                            )} />
+                            <span className="flex-1 truncate text-left">{file.name}</span>
+                            <span className="text-xs text-muted-foreground">{file.language}</span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <span>Code</span>
+                )}
+                
                 <span className={cn(
                   "text-xs px-2 py-0.5 rounded-full",
                   detectedLanguage === 'none' 

@@ -133,11 +133,15 @@ The removed features were either:
 
 ### 🎨 Canvas Mode (Revolutionary)
 - **LIVE Code Streaming** – Code appears in real-time as AI writes it, character by character
+- **Multi-File Support** – AI can create multiple files at once (HTML, CSS, JS separately)
+- **File Explorer Dropdown** – Switch between multiple files with live updates
 - **Independent Chat System** – Separate session management for Canvas with its own message history
-- **Smart Code Detection** – Automatically extracts main code block from AI responses
+- **Smart Code Detection** – Automatically extracts all code blocks from AI responses
 - **Persistent Language Recognition** – Remembers programming language across sessions and reloads
 - **20+ Languages** – Full syntax highlighting for Python, JavaScript, TypeScript, Java, C++, Rust, Go, and more
 - **Real-Time Execution** – Run code directly with instant output display
+- **Sandboxed Package Manager** – Install packages in isolated venv/node_modules (never touches system)
+- **Package Manager Dropdown** – View installed packages and errors in dedicated dropdown
 - **Resizable Interface** – Drag-and-drop resizing for chat sidebar and editor
 - **Session Management** – Create, switch, rename, and delete Canvas sessions
 

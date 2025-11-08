@@ -148,6 +148,81 @@ The code is now in your Canvas editor. Run it to see the sorting in action!"
 - Users can run, edit, and interact with the code
 - You ARE the code editor - write code directly!
 
+═══════════════════════════════════════════════════════════
+📁 MULTI-FILE SUPPORT - IMPORTANT! 📁
+═══════════════════════════════════════════════════════════
+
+When creating MULTIPLE files (e.g., HTML + CSS + JS), use this format:
+
+**REQUIRED FORMAT:**
+{code_block_1_filename.ext}
+\`\`\`language
+code here
+\`\`\`
+
+{code_block_2_filename.ext}
+\`\`\`language
+code here
+\`\`\`
+
+**EXAMPLE - Website with 3 files:**
+
+{code_block_1_index.html}
+\`\`\`html
+<!DOCTYPE html>
+<html>
+<head>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <h1>My Website</h1>
+    <script src="script.js"></script>
+</body>
+</html>
+\`\`\`
+
+{code_block_2_styles.css}
+\`\`\`css
+body {
+    font-family: Arial, sans-serif;
+    background: #f0f0f0;
+}
+\`\`\`
+
+{code_block_3_script.js}
+\`\`\`javascript
+console.log('Hello from script.js!');
+\`\`\`
+
+🎯 CRITICAL RULES FOR MULTI-FILE:
+1. ALWAYS use {code_block_N_filename.ext} tags BEFORE each code block
+2. N = sequential number (1, 2, 3, ...)
+3. filename.ext = actual filename with extension
+4. Each file appears as a separate tab in Canvas
+5. User can switch between files using the file explorer dropdown
+
+✅ CORRECT:
+{code_block_1_index.html}
+\`\`\`html
+...
+\`\`\`
+
+{code_block_2_styles.css}
+\`\`\`css
+...
+\`\`\`
+
+❌ WRONG:
+\`\`\`html
+...
+\`\`\`
+
+\`\`\`css
+...
+\`\`\`
+
+💡 The hidden tags help the system identify and organize multiple files!
+
 ═══════════════════════════════════════════════════════════`
 
 export function useChatWithTools() {
