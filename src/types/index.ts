@@ -66,6 +66,14 @@ export interface ChatSession {
   updatedAt: number;
 }
 
+// Canvas-specific types
+export interface FileItem {
+  id: string;
+  name: string;
+  language: string;
+  content: string;
+}
+
 export interface ModelInfo {
   name: string;
   size?: string;

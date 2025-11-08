@@ -3,7 +3,7 @@
 // Includes Canvas Tool integration for LIVE code updates
 
 import { useState, useCallback, useRef, useEffect } from 'react'
-import type { ProviderConfig, ImageAttachment } from '../types'
+import type { ProviderConfig, ImageAttachment, FileItem } from '../types'
 import { ProviderFactory } from '../providers'
 import { generateId } from '../lib/utils'
 
@@ -27,6 +27,9 @@ export interface CanvasSession {
   // Canvas-specific data
   canvasCode?: string
   canvasLanguage?: string
+  canvasFiles?: FileItem[]
+  currentFileId?: string
+  showFileExplorer?: boolean  // Persist file explorer state
 }
 
 export function useCanvasChat() {
@@ -34,9 +37,20 @@ export function useCanvasChat() {
   const [sessions, setSessions] = useState<CanvasSession[]>(() => {
     try {
       const saved = localStorage.getItem('canvas-chat-sessions')
-      return saved ? JSON.parse(saved) : []
+      const parsed = saved ? JSON.parse(saved) : []
+      console.log('[useCanvasChat] 📂 Loaded sessions from localStorage:', {
+        count: parsed.length,
+        sessions: parsed.map((s: CanvasSession) => ({
+          id: s.id,
+          title: s.title,
+          filesCount: s.canvasFiles?.length || 0,
+          fileNames: s.canvasFiles?.map(f => f.name) || [],
+          showFileExplorer: s.showFileExplorer
+        }))
+      })
+      return parsed
     } catch (error) {
-      console.error('Failed to load canvas sessions:', error)
+      console.error('[useCanvasChat] ❌ Failed to load canvas sessions:', error)
       return []
     }
   })
@@ -60,9 +74,20 @@ export function useCanvasChat() {
   // Save sessions to localStorage
   useEffect(() => {
     try {
+      console.log('[useCanvasChat] 💾 Saving sessions to localStorage:', {
+        count: sessions.length,
+        sessions: sessions.map(s => ({
+          id: s.id,
+          title: s.title,
+          filesCount: s.canvasFiles?.length || 0,
+          fileNames: s.canvasFiles?.map(f => f.name) || [],
+          showFileExplorer: s.showFileExplorer
+        }))
+      })
       localStorage.setItem('canvas-chat-sessions', JSON.stringify(sessions))
+      console.log('[useCanvasChat] ✅ Sessions saved to localStorage')
     } catch (error) {
-      console.error('Failed to save canvas sessions:', error)
+      console.error('[useCanvasChat] ❌ Failed to save canvas sessions:', error)
     }
   }, [sessions])
 
@@ -128,14 +153,54 @@ export function useCanvasChat() {
     }
   }, [currentSession])
 
-  // Save canvas state (code + language)
-  const saveCanvasState = useCallback((sessionId: string, code: string, language: string) => {
-    setSessions(prev => prev.map(s => 
-      s.id === sessionId ? { ...s, canvasCode: code, canvasLanguage: language, updatedAt: Date.now() } : s
-    ))
+  // Save canvas state (code + language + files + explorer state)
+  const saveCanvasState = useCallback((
+    sessionId: string, 
+    code: string, 
+    language: string, 
+    files?: FileItem[], 
+    currentFileId?: string,
+    showFileExplorer?: boolean
+  ) => {
+    console.log('[useCanvasChat] 💾 saveCanvasState called:', {
+      sessionId,
+      codeLength: code.length,
+      language,
+      filesCount: files?.length || 0,
+      fileNames: files?.map(f => f.name) || [],
+      currentFileId,
+      showFileExplorer
+    })
+    
+    setSessions(prev => {
+      const updated = prev.map(s => 
+        s.id === sessionId ? { 
+          ...s, 
+          canvasCode: code, 
+          canvasLanguage: language,
+          canvasFiles: files,
+          currentFileId: currentFileId,
+          showFileExplorer: showFileExplorer,
+          updatedAt: Date.now() 
+        } : s
+      )
+      
+      console.log('[useCanvasChat] ✅ Sessions updated, session data:', 
+        updated.find(s => s.id === sessionId)
+      )
+      
+      return updated
+    })
     
     if (currentSession?.id === sessionId) {
-      setCurrentSession(prev => prev ? { ...prev, canvasCode: code, canvasLanguage: language } : null)
+      setCurrentSession(prev => prev ? { 
+        ...prev, 
+        canvasCode: code, 
+        canvasLanguage: language,
+        canvasFiles: files,
+        currentFileId: currentFileId,
+        showFileExplorer: showFileExplorer
+      } : null)
     }
   }, [currentSession])
 
@@ -248,13 +313,13 @@ export function useCanvasChat() {
         
         // 3. Check for filename in markdown heading or bold text before this block
         if (!filename && start.index > 0) {
-          const beforeBlock = content.substring(Math.max(0, start.index - 200), start.index)
+          const beforeBlock = content.substring(Math.max(0, start.index - 300), start.index)
           
-          // Try multiple patterns
+          // Try multiple patterns (in order of specificity)
           // Pattern 1: **filename.ext** or **filename**
           let filenameMatch = beforeBlock.match(/\*\*([^\*]+\.(?:html|css|js|ts|py|java|cpp|rs|go|rb|php|swift|kt|cs|sql|sh|json|yaml|xml|md))\*\*/i)
           
-          // Pattern 2: ### filename.ext or ## filename.ext
+          // Pattern 2: ### filename.ext or ## filename.ext (markdown heading)
           if (!filenameMatch) {
             filenameMatch = beforeBlock.match(/#{2,3}\s*([^\s\n]+\.(?:html|css|js|ts|py|java|cpp|rs|go|rb|php|swift|kt|cs|sql|sh|json|yaml|xml|md))/i)
           }
@@ -264,14 +329,60 @@ export function useCanvasChat() {
             filenameMatch = beforeBlock.match(/\(([^\)]+\.(?:html|css|js|ts|py|java|cpp|rs|go|rb|php|swift|kt|cs|sql|sh|json|yaml|xml|md))\)/i)
           }
           
-          // Pattern 4: Just filename.ext at the end of a line
+          // Pattern 4: `filename.ext` in backticks
+          if (!filenameMatch) {
+            filenameMatch = beforeBlock.match(/`([^\`]+\.(?:html|css|js|ts|py|java|cpp|rs|go|rb|php|swift|kt|cs|sql|sh|json|yaml|xml|md))`/i)
+          }
+          
+          // Pattern 5: "filename.ext" in quotes
+          if (!filenameMatch) {
+            filenameMatch = beforeBlock.match(/"([^"]+\.(?:html|css|js|ts|py|java|cpp|rs|go|rb|php|swift|kt|cs|sql|sh|json|yaml|xml|md))"/i)
+          }
+          
+          // Pattern 6: filename.ext: at the start of a line (like "index.html:")
+          if (!filenameMatch) {
+            filenameMatch = beforeBlock.match(/^([a-zA-Z0-9_-]+\.(?:html|css|js|ts|py|java|cpp|rs|go|rb|php|swift|kt|cs|sql|sh|json|yaml|xml|md)):\s*$/im)
+          }
+          
+          // Pattern 7: Just filename.ext at the end of a line
           if (!filenameMatch) {
             filenameMatch = beforeBlock.match(/([a-zA-Z0-9_-]+\.(?:html|css|js|ts|py|java|cpp|rs|go|rb|php|swift|kt|cs|sql|sh|json|yaml|xml|md))\s*$/i)
+          }
+          
+          // Pattern 8: For JavaScript files, look for common patterns like "script.js" or "app.js"
+          if (!filenameMatch && language === 'javascript') {
+            filenameMatch = beforeBlock.match(/(script|app|main|index)\.js/i)
           }
           
           if (filenameMatch) {
             filename = filenameMatch[1].trim()
             console.log('[Canvas Chat] ✓ Extracted filename from text:', filename)
+          }
+        }
+        
+        // 4. If still no filename, try to infer from context or use smart defaults
+        if (!filename) {
+          // Check if this is the first block of a specific type
+          const existingOfType = allCodeBlocks.filter(b => b.language === language).length
+          
+          if (existingOfType === 0) {
+            // First file of this type - use common defaults
+            const commonDefaults: Record<string, string> = {
+              html: 'index.html',
+              css: 'styles.css',
+              javascript: 'script.js',
+              typescript: 'script.ts',
+              python: 'main.py',
+              java: 'Main.java',
+              cpp: 'main.cpp',
+              rust: 'main.rs',
+              go: 'main.go'
+            }
+            
+            filename = commonDefaults[language]
+            if (filename) {
+              console.log('[Canvas Chat] ✓ Using default filename for', language, ':', filename)
+            }
           }
         }
         

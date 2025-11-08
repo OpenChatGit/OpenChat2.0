@@ -61,7 +61,7 @@ interface CanvasProps {
   onCreateCanvasSession?: () => void
   onDeleteCanvasSession?: (sessionId: string) => void
   onRenameCanvasSession?: (sessionId: string, newTitle: string) => void
-  onSaveCanvasState?: (sessionId: string, code: string, language: string) => void
+  onSaveCanvasState?: (sessionId: string, code: string, language: string, files?: any[], currentFileId?: string, showFileExplorer?: boolean) => void
 }
 
 // Helper function to escape HTML
@@ -146,9 +146,21 @@ export function Canvas({
     language: string
     content: string
   }
-  const [files, setFiles] = useState<FileItem[]>([])
-  const [currentFileId, setCurrentFileId] = useState<string | null>(null)
-  const [showFileExplorer, setShowFileExplorer] = useState(false)
+  const [files, setFiles] = useState<FileItem[]>(() => {
+    // Initialize from session if available
+    return currentSession?.canvasFiles || []
+  })
+  const [currentFileId, setCurrentFileId] = useState<string | null>(() => {
+    // Initialize from session if available
+    return currentSession?.currentFileId || null
+  })
+  const [showFileExplorer, setShowFileExplorer] = useState(() => {
+    // Restore from session if available, otherwise default to closed
+    if (currentSession?.showFileExplorer !== undefined) {
+      return currentSession.showFileExplorer
+    }
+    return false  // Default: closed
+  })
   
   const resizeRef = useRef<HTMLDivElement>(null)
   const editorResizeRef = useRef<HTMLDivElement>(null)
@@ -233,7 +245,7 @@ export function Canvas({
     }
   }, [currentSession?.id, detectedLanguage])
 
-  // Load code and language from session when session changes
+  // Load code, language, and files from session when session changes
   useEffect(() => {
     if (currentSession?.canvasCode) {
       console.log('[Canvas] Loading session code:', currentSession.id, 'Language:', currentSession.canvasLanguage)
@@ -245,27 +257,99 @@ export function Canvas({
         setManualLanguageSet(true) // Prevent auto-detection from overriding
         console.log('[Canvas] Language restored from session:', normalizedLanguage)
       }
+      
+      // Restore files if available
+      if (currentSession.canvasFiles && currentSession.canvasFiles.length > 0) {
+        console.log('[Canvas] 📁 Restoring files from session:', {
+          sessionId: currentSession.id,
+          filesCount: currentSession.canvasFiles.length,
+          fileNames: currentSession.canvasFiles.map((f: FileItem) => f.name),
+          currentFileId: currentSession.currentFileId,
+          showFileExplorer: currentSession.showFileExplorer
+        })
+        
+        setFiles(currentSession.canvasFiles)
+        
+        // Restore current file ID
+        if (currentSession.currentFileId) {
+          setCurrentFileId(currentSession.currentFileId)
+          const currentFile = currentSession.canvasFiles.find((f: FileItem) => f.id === currentSession.currentFileId)
+          if (currentFile) {
+            setCode(currentFile.content)
+            setDetectedLanguage(currentFile.language)
+            setCurrentFilename(currentFile.name)
+            console.log('[Canvas] 📄 Restored current file:', currentFile.name)
+          } else {
+            console.warn('[Canvas] ⚠️ Current file ID not found in files:', currentSession.currentFileId)
+          }
+        } else {
+          console.warn('[Canvas] ⚠️ No current file ID in session')
+        }
+        
+        // Restore file explorer state from session
+        if (currentSession.showFileExplorer !== undefined) {
+          console.log('[Canvas] 📂 Restoring file explorer state:', currentSession.showFileExplorer)
+          setShowFileExplorer(currentSession.showFileExplorer)
+        } else {
+          // Default: closed (user must click to open)
+          console.log('[Canvas] 📂 File explorer closed by default')
+          setShowFileExplorer(false)
+        }
+        
+        console.log('[Canvas] ✅ Files restored successfully')
+      } else {
+        console.log('[Canvas] ℹ️ No files in session to restore')
+        // No files in session - clear files state
+        setFiles([])
+        setCurrentFileId(null)
+        setShowFileExplorer(false)
+      }
     } else if (currentSession) {
       // New session without code - reset to defaults
       setCode('')
       setDetectedLanguage('none')
       setManualLanguageSet(false)
       setInstalledPackages([]) // Reset installed packages
+      setFiles([]) // Reset files
+      setCurrentFileId(null)
       console.log('[Canvas] New session - reset to defaults')
     }
   }, [currentSession?.id])
 
-  // Auto-save code to session
+  // Auto-save code, files, current file, and explorer state to session
   useEffect(() => {
-    if (currentSession && code && onSaveCanvasState) {
-      // Debounce save
-      const timer = setTimeout(() => {
-        onSaveCanvasState(currentSession.id, code, detectedLanguage)
-      }, 1000)
+    if (!currentSession || !onSaveCanvasState) return
+    
+    // Debounce save
+    const timer = setTimeout(() => {
+      // Update current file content in files array if we're in multi-file mode
+      let updatedFiles = files
+      if (files.length > 0 && currentFileId) {
+        updatedFiles = files.map((f: FileItem) => 
+          f.id === currentFileId ? { ...f, content: code } : f
+        )
+      }
       
-      return () => clearTimeout(timer)
-    }
-  }, [code, detectedLanguage, currentSession?.id, onSaveCanvasState])
+      onSaveCanvasState(
+        currentSession.id, 
+        code, 
+        detectedLanguage,
+        updatedFiles.length > 0 ? updatedFiles : undefined,
+        currentFileId || undefined,
+        showFileExplorer  // Save explorer state
+      )
+      console.log('[Canvas] 💾 Auto-saved:', {
+        code: code.length,
+        language: detectedLanguage,
+        files: updatedFiles.length,
+        currentFileId,
+        showFileExplorer
+      })
+    }, 1000)
+    
+    return () => clearTimeout(timer)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [code, detectedLanguage, files, currentFileId, showFileExplorer, currentSession?.id])
 
   // Debug: Log when files change
   useEffect(() => {
@@ -417,7 +501,44 @@ export function Canvas({
         const existingFileMap = new Map(files.map(f => [f.name, f]))
         
         allCodeBlocks.forEach((block: any, index: number) => {
-          const fileName = block.filename || `file${index + 1}.${getFileExtension(block.language)}`
+          // Generate filename with better fallback logic
+          let fileName = block.filename
+          
+          // If no filename provided, try to extract from code content
+          if (!fileName) {
+            // Try to find filename in first line comment
+            const firstLine = block.code.split('\n')[0]
+            const commentMatch = firstLine.match(/^(?:\/\/|#|<!--)\s*(?:filename:|file:)?\s*([^\s\n]+\.[a-z]+)/i)
+            if (commentMatch) {
+              fileName = commentMatch[1].trim()
+              console.log('[Canvas] 📝 Extracted filename from code comment:', fileName)
+            }
+          }
+          
+          // If still no filename, generate a smart default based on language
+          if (!fileName) {
+            const languageDefaults: Record<string, string> = {
+              html: 'index.html',
+              css: 'styles.css',
+              javascript: 'script.js',
+              typescript: 'script.ts',
+              python: 'main.py',
+              java: 'Main.java',
+              cpp: 'main.cpp',
+              rust: 'main.rs',
+              go: 'main.go'
+            }
+            
+            // Use language-specific default or generic file{N}.ext
+            const defaultName = languageDefaults[block.language.toLowerCase()]
+            if (defaultName && index === 0) {
+              fileName = defaultName
+            } else {
+              fileName = `file${index + 1}.${getFileExtension(block.language)}`
+            }
+            console.log('[Canvas] 🏷️ Generated default filename:', fileName)
+          }
+          
           const existingFile = existingFileMap.get(fileName)
           
           if (existingFile) {
@@ -460,10 +581,34 @@ export function Canvas({
           }
         }
         
-        // Show file explorer when we have multiple files
-        if (updatedFiles.length > 1 && !showFileExplorer) {
-          console.log('[Canvas] 📂 Opening file explorer')
-          setShowFileExplorer(true)
+        // Don't auto-open file explorer - user must click
+        // (removed auto-open logic)
+        
+        // Save files to session immediately
+        if (currentSession && onSaveCanvasState) {
+          const explorerState = showFileExplorer  // Keep current state
+          console.log('[Canvas] 💾 Saving to session:', {
+            sessionId: currentSession.id,
+            filesCount: updatedFiles.length,
+            fileNames: updatedFiles.map(f => f.name),
+            currentFileId: updatedFiles[0]?.id || currentFileId,
+            showFileExplorer: explorerState
+          })
+          
+          onSaveCanvasState(
+            currentSession.id,
+            updatedFiles[0]?.content || code,
+            updatedFiles[0]?.language || detectedLanguage,
+            updatedFiles,
+            updatedFiles[0]?.id || currentFileId || undefined,
+            explorerState
+          )
+          console.log('[Canvas] ✅ Multi-files saved to session')
+        } else {
+          console.error('[Canvas] ❌ Cannot save - missing session or save function:', {
+            hasSession: !!currentSession,
+            hasSaveFunction: !!onSaveCanvasState
+          })
         }
       } else {
         // Single file - update code in real-time
@@ -1099,6 +1244,27 @@ export function Canvas({
   const handleReset = () => {
     setCode(initialCode)
     setOutput('')
+    
+    // Clear all files
+    setFiles([])
+    setCurrentFileId(null)
+    setCurrentFilename('')
+    setShowFileExplorer(false)
+    setDetectedLanguage('none')
+    setManualLanguageSet(false)
+    
+    // Save cleared state to session
+    if (currentSession && onSaveCanvasState) {
+      onSaveCanvasState(
+        currentSession.id,
+        initialCode,
+        'none',
+        undefined,  // No files
+        undefined,  // No current file
+        false       // Explorer closed
+      )
+      console.log('[Canvas] 🗑️ Reset: All files cleared and session updated')
+    }
   }
 
   return (
@@ -1373,80 +1539,84 @@ export function Canvas({
                   {isChatSidebarCollapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
                 </button>
                 
-                {/* File Explorer Dropdown - Debug */}
-                {files.length > 0 ? (
-                  <div className="relative" ref={fileExplorerRef}>
-                    <button
-                      onClick={() => {
-                        console.log('[Canvas] Toggling file explorer, current:', showFileExplorer)
+                {/* File Explorer Dropdown - ALWAYS VISIBLE */}
+                <div className="relative" ref={fileExplorerRef}>
+                  <button
+                    onClick={() => {
+                      if (files.length > 0) {
+                        console.log('[Canvas] Toggling file explorer, current:', showFileExplorer, 'files:', files.length)
                         setShowFileExplorer(!showFileExplorer)
-                      }}
-                      className={cn(
-                        "flex items-center gap-1.5 px-2 py-1 rounded-lg hover:bg-white/10 transition-colors",
-                        showFileExplorer && "bg-primary/20"
-                      )}
-                      title="File Explorer"
-                    >
-                      <span className="text-xs font-medium">
-                        {files.find(f => f.id === currentFileId)?.name || 'Select File'}
-                      </span>
-                      <ChevronDown className={cn(
-                        "w-3 h-3 transition-transform",
-                        showFileExplorer && "rotate-180"
-                      )} />
-                      <span className="text-xs px-1.5 py-0.5 rounded-full bg-primary/30">
+                      }
+                    }}
+                    className={cn(
+                      "flex items-center gap-1.5 px-2 py-1 rounded-lg transition-colors",
+                      files.length > 0 ? "hover:bg-white/10 cursor-pointer" : "cursor-default opacity-60",
+                      showFileExplorer && files.length > 0 && "bg-primary/20"
+                    )}
+                    title={files.length > 0 ? `File Explorer (${files.length} file${files.length > 1 ? 's' : ''})` : 'No files yet'}
+                  >
+                    <span className="text-xs font-medium truncate max-w-[150px]">
+                      {files.length > 0 
+                        ? (files.find(f => f.id === currentFileId)?.name || 'Select File')
+                        : 'Files'
+                      }
+                    </span>
+                    <ChevronDown className={cn(
+                      "w-3 h-3 transition-transform flex-shrink-0",
+                      showFileExplorer && files.length > 0 && "rotate-180"
+                    )} />
+                    {files.length > 0 && (
+                      <span className="text-xs px-1.5 py-0.5 rounded-full bg-primary/30 flex-shrink-0">
                         {files.length}
                       </span>
-                    </button>
-                    
-                    {/* File List Dropdown */}
-                    {showFileExplorer && (
-                      <div 
-                        className="absolute top-full left-0 mt-1 w-64 rounded-lg shadow-lg border overflow-hidden z-50"
-                        style={{
-                          backgroundColor: 'var(--color-sidebar)',
-                          borderColor: 'var(--color-dropdown-border)',
-                          maxHeight: '300px',
-                          overflowY: 'auto'
-                        }}
-                      >
-                        <div className="px-3 py-2 border-b text-xs font-semibold text-muted-foreground" style={{ borderColor: 'var(--color-dropdown-border)' }}>
-                          Files ({files.length})
-                        </div>
-                        {files.map((file) => (
-                          <button
-                            key={file.id}
-                            onClick={() => {
-                              setCurrentFileId(file.id)
-                              setCode(file.content)
-                              setDetectedLanguage(file.language)
-                              setCurrentFilename(file.name)
-                              setShowFileExplorer(false)
-                            }}
-                            className={cn(
-                              'w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-white/10 transition-colors',
-                              currentFileId === file.id && 'bg-primary/20'
-                            )}
-                          >
-                            <div className={cn(
-                              "w-2 h-2 rounded-full flex-shrink-0",
-                              file.language === 'html' && "bg-orange-500",
-                              file.language === 'css' && "bg-blue-500",
-                              file.language === 'javascript' && "bg-yellow-500",
-                              file.language === 'typescript' && "bg-blue-400",
-                              file.language === 'python' && "bg-green-500",
-                              !['html', 'css', 'javascript', 'typescript', 'python'].includes(file.language) && "bg-gray-500"
-                            )} />
-                            <span className="flex-1 truncate text-left">{file.name}</span>
-                            <span className="text-xs text-muted-foreground">{file.language}</span>
-                          </button>
-                        ))}
-                      </div>
                     )}
-                  </div>
-                ) : (
-                  <span>Code</span>
-                )}
+                  </button>
+                  
+                  {/* File List Dropdown - Only show if files exist */}
+                  {showFileExplorer && files.length > 0 && (
+                    <div 
+                      className="absolute top-full left-0 mt-1 w-64 rounded-lg shadow-lg border overflow-hidden z-50"
+                      style={{
+                        backgroundColor: 'var(--color-sidebar)',
+                        borderColor: 'var(--color-dropdown-border)',
+                        maxHeight: '300px',
+                        overflowY: 'auto'
+                      }}
+                    >
+                      <div className="px-3 py-2 border-b text-xs font-semibold text-muted-foreground" style={{ borderColor: 'var(--color-dropdown-border)' }}>
+                        Files ({files.length})
+                      </div>
+                      {files.map((file) => (
+                        <button
+                          key={file.id}
+                          onClick={() => {
+                            setCurrentFileId(file.id)
+                            setCode(file.content)
+                            setDetectedLanguage(file.language)
+                            setCurrentFilename(file.name)
+                            setShowFileExplorer(false)
+                          }}
+                          className={cn(
+                            'w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-white/10 transition-colors',
+                            currentFileId === file.id && 'bg-primary/20'
+                          )}
+                        >
+                          <div className={cn(
+                            "w-2 h-2 rounded-full flex-shrink-0",
+                            file.language === 'html' && "bg-orange-500",
+                            file.language === 'css' && "bg-blue-500",
+                            file.language === 'javascript' && "bg-yellow-500",
+                            file.language === 'typescript' && "bg-blue-400",
+                            file.language === 'python' && "bg-green-500",
+                            !['html', 'css', 'javascript', 'typescript', 'python'].includes(file.language) && "bg-gray-500"
+                          )} />
+                          <span className="flex-1 truncate text-left">{file.name}</span>
+                          <span className="text-xs text-muted-foreground">{file.language}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
                 
                 <span className={cn(
                   "text-xs px-2 py-0.5 rounded-full",
@@ -1810,78 +1980,94 @@ export function Canvas({
                   >
                     {detectedLanguage === 'html' || detectedLanguage === 'markup' ? (
                       <iframe
-                        srcDoc={previewDarkMode ? `
-                          <!DOCTYPE html>
-                          <html>
-                            <head>
-                              <meta charset="UTF-8">
-                              <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                              <style>
-                                body { background-color: #1a1a1a; color: #e5e5e5; margin: 0; padding: 0; }
-                              </style>
-                              <script>
-                                // Prevent navigation and form submissions from breaking the preview
-                                document.addEventListener('DOMContentLoaded', function() {
-                                  // Prevent all links from navigating
-                                  document.addEventListener('click', function(e) {
-                                    if (e.target.tagName === 'A' || e.target.closest('a')) {
+                        srcDoc={(() => {
+                          // Build complete HTML with all related files
+                          let htmlContent = code
+                          
+                          // If we have multiple files, inject CSS and JS
+                          if (files.length > 1) {
+                            const cssFiles = files.filter(f => f.language === 'css')
+                            const jsFiles = files.filter(f => f.language === 'javascript' || f.language === 'typescript')
+                            
+                            // Inject CSS into <head>
+                            if (cssFiles.length > 0) {
+                              const allCSS = cssFiles.map(f => f.content).join('\n\n')
+                              const styleTag = `<style>\n${allCSS}\n</style>`
+                              
+                              // Try to inject before </head>
+                              if (htmlContent.includes('</head>')) {
+                                htmlContent = htmlContent.replace('</head>', `${styleTag}\n</head>`)
+                              } else {
+                                // No </head>, add at the beginning
+                                htmlContent = styleTag + '\n' + htmlContent
+                              }
+                            }
+                            
+                            // Inject JS before </body>
+                            if (jsFiles.length > 0) {
+                              const allJS = jsFiles.map(f => f.content).join('\n\n')
+                              const scriptTag = `<script>\n${allJS}\n</script>`
+                              
+                              // Try to inject before </body>
+                              if (htmlContent.includes('</body>')) {
+                                htmlContent = htmlContent.replace('</body>', `${scriptTag}\n</body>`)
+                              } else {
+                                // No </body>, add at the end
+                                htmlContent = htmlContent + '\n' + scriptTag
+                              }
+                            }
+                          }
+                          
+                          // Wrap in full HTML if needed
+                          const fullHTML = previewDarkMode ? `
+                            <!DOCTYPE html>
+                            <html>
+                              <head>
+                                <meta charset="UTF-8">
+                                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                                <style>
+                                  body { background-color: #1a1a1a; color: #e5e5e5; margin: 0; padding: 0; }
+                                </style>
+                                <script>
+                                  document.addEventListener('DOMContentLoaded', function() {
+                                    document.addEventListener('click', function(e) {
+                                      if (e.target.tagName === 'A' || e.target.closest('a')) {
+                                        e.preventDefault();
+                                      }
+                                    }, true);
+                                    document.addEventListener('submit', function(e) {
                                       e.preventDefault();
-                                      console.log('Link click prevented in preview mode');
-                                    }
-                                  }, true);
-                                  
-                                  // Prevent form submissions
-                                  document.addEventListener('submit', function(e) {
-                                    e.preventDefault();
-                                    console.log('Form submission prevented in preview mode');
-                                  }, true);
-                                  
-                                  // Prevent window.location changes
-                                  const originalLocation = window.location;
-                                  Object.defineProperty(window, 'location', {
-                                    get: function() { return originalLocation; },
-                                    set: function(val) { console.log('Navigation prevented in preview mode'); }
+                                    }, true);
                                   });
-                                });
-                              </script>
-                            </head>
-                            <body>${code}</body>
-                          </html>
-                        ` : `
-                          <!DOCTYPE html>
-                          <html>
-                            <head>
-                              <meta charset="UTF-8">
-                              <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                              <script>
-                                // Prevent navigation and form submissions from breaking the preview
-                                document.addEventListener('DOMContentLoaded', function() {
-                                  // Prevent all links from navigating
-                                  document.addEventListener('click', function(e) {
-                                    if (e.target.tagName === 'A' || e.target.closest('a')) {
+                                </script>
+                              </head>
+                              <body>${htmlContent}</body>
+                            </html>
+                          ` : `
+                            <!DOCTYPE html>
+                            <html>
+                              <head>
+                                <meta charset="UTF-8">
+                                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                                <script>
+                                  document.addEventListener('DOMContentLoaded', function() {
+                                    document.addEventListener('click', function(e) {
+                                      if (e.target.tagName === 'A' || e.target.closest('a')) {
+                                        e.preventDefault();
+                                      }
+                                    }, true);
+                                    document.addEventListener('submit', function(e) {
                                       e.preventDefault();
-                                      console.log('Link click prevented in preview mode');
-                                    }
-                                  }, true);
-                                  
-                                  // Prevent form submissions
-                                  document.addEventListener('submit', function(e) {
-                                    e.preventDefault();
-                                    console.log('Form submission prevented in preview mode');
-                                  }, true);
-                                  
-                                  // Prevent window.location changes
-                                  const originalLocation = window.location;
-                                  Object.defineProperty(window, 'location', {
-                                    get: function() { return originalLocation; },
-                                    set: function(val) { console.log('Navigation prevented in preview mode'); }
+                                    }, true);
                                   });
-                                });
-                              </script>
-                            </head>
-                            <body>${code}</body>
-                          </html>
-                        `}
+                                </script>
+                              </head>
+                              <body>${htmlContent}</body>
+                            </html>
+                          `
+                          
+                          return fullHTML
+                        })()}
                         className="w-full h-full border-0"
                         sandbox="allow-scripts"
                         title="HTML Preview"

@@ -114,9 +114,22 @@ export function useCanvasManager({
   }, [renameCanvasSession])
 
   // Save canvas state - uses Canvas Chat
-  const handleSaveCanvasState = useCallback((sessionId: string, code: string, language: string) => {
-    console.log('[Canvas Manager] Saving canvas state via useCanvasChat:', sessionId)
-    saveCanvasState(sessionId, code, language)
+  const handleSaveCanvasState = useCallback((
+    sessionId: string, 
+    code: string, 
+    language: string, 
+    files?: any[], 
+    currentFileId?: string, 
+    showFileExplorer?: boolean
+  ) => {
+    console.log('[Canvas Manager] Saving canvas state via useCanvasChat:', sessionId, {
+      codeLength: code.length,
+      language,
+      filesCount: files?.length || 0,
+      currentFileId,
+      showFileExplorer
+    })
+    saveCanvasState(sessionId, code, language, files, currentFileId, showFileExplorer)
   }, [saveCanvasState])
 
   return {
