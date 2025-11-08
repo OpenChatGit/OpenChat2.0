@@ -1,4 +1,4 @@
-﻿![OpenChat screenshot](https://i.imgur.com/5h9F6rg.png)
+﻿![OpenChat screenshot](https://i.imgur.com/YVcZIrN.png)
 
 # OpenChat
 
