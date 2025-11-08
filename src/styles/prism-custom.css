@@ -1,0 +1,287 @@
+/* Custom Prism theme for Canvas editor */
+.canvas-editor pre[class*="language-"],
+.canvas-editor code[class*="language-"] {
+  color: var(--color-foreground);
+  background: transparent;
+  font-family: 'Consolas', 'Monaco', 'Andale Mono', 'Ubuntu Mono', monospace;
+  font-size: 0.875rem;
+  text-align: left;
+  white-space: pre-wrap;
+  word-spacing: normal;
+  word-break: break-word;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  line-height: 1.5rem;
+  tab-size: 2;
+  -moz-tab-size: 2;
+  hyphens: none;
+  letter-spacing: normal;
+}
+
+/* Custom Prism theme for Chat - keep background from markdown.css */
+.markdown-content code[class*="language-"] {
+  color: var(--color-foreground);
+  font-family: 'Consolas', 'Monaco', 'Andale Mono', 'Ubuntu Mono', monospace;
+  font-size: 0.875rem;
+  text-align: left;
+  white-space: pre-wrap;
+  word-spacing: normal;
+  word-break: break-word;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  line-height: 1.5rem;
+  tab-size: 2;
+  -moz-tab-size: 2;
+  hyphens: none;
+  letter-spacing: normal;
+}
+
+/* Token colors - adapted for dark/light themes */
+.canvas-editor .token.comment,
+.canvas-editor .token.prolog,
+.canvas-editor .token.doctype,
+.canvas-editor .token.cdata,
+.markdown-content .token.comment,
+.markdown-content .token.prolog,
+.markdown-content .token.doctype,
+.markdown-content .token.cdata {
+  color: #6a9955;
+  font-style: italic;
+}
+
+.canvas-editor .token.punctuation,
+.markdown-content .token.punctuation {
+  color: var(--color-foreground);
+  opacity: 0.7;
+}
+
+.canvas-editor .token.property,
+.canvas-editor .token.tag,
+.canvas-editor .token.boolean,
+.canvas-editor .token.number,
+.canvas-editor .token.constant,
+.canvas-editor .token.symbol,
+.canvas-editor .token.deleted,
+.markdown-content .token.property,
+.markdown-content .token.tag,
+.markdown-content .token.boolean,
+.markdown-content .token.number,
+.markdown-content .token.constant,
+.markdown-content .token.symbol,
+.markdown-content .token.deleted {
+  color: #b5cea8;
+}
+
+.canvas-editor .token.selector,
+.canvas-editor .token.attr-name,
+.canvas-editor .token.string,
+.canvas-editor .token.char,
+.canvas-editor .token.builtin,
+.canvas-editor .token.inserted,
+.markdown-content .token.selector,
+.markdown-content .token.attr-name,
+.markdown-content .token.string,
+.markdown-content .token.char,
+.markdown-content .token.builtin,
+.markdown-content .token.inserted {
+  color: #ce9178;
+}
+
+.canvas-editor .token.operator,
+.canvas-editor .token.entity,
+.canvas-editor .token.url,
+.canvas-editor .language-css .token.string,
+.canvas-editor .style .token.string,
+.markdown-content .token.operator,
+.markdown-content .token.entity,
+.markdown-content .token.url,
+.markdown-content .language-css .token.string,
+.markdown-content .style .token.string {
+  color: #d4d4d4;
+}
+
+.canvas-editor .token.atrule,
+.canvas-editor .token.attr-value,
+.canvas-editor .token.keyword,
+.markdown-content .token.atrule,
+.markdown-content .token.attr-value,
+.markdown-content .token.keyword {
+  color: #c586c0;
+}
+
+.canvas-editor .token.function,
+.canvas-editor .token.class-name,
+.markdown-content .token.function,
+.markdown-content .token.class-name {
+  color: #dcdcaa;
+}
+
+.canvas-editor .token.regex,
+.canvas-editor .token.important,
+.canvas-editor .token.variable,
+.markdown-content .token.regex,
+.markdown-content .token.important,
+.markdown-content .token.variable {
+  color: #9cdcfe;
+}
+
+.canvas-editor .token.important,
+.canvas-editor .token.bold,
+.markdown-content .token.important,
+.markdown-content .token.bold {
+  font-weight: bold;
+}
+
+.canvas-editor .token.italic,
+.markdown-content .token.italic {
+  font-style: italic;
+}
+
+/* Light theme adjustments */
+[data-theme="light"] .canvas-editor .token.comment,
+[data-theme="light"] .canvas-editor .token.prolog,
+[data-theme="light"] .canvas-editor .token.doctype,
+[data-theme="light"] .canvas-editor .token.cdata,
+[data-theme="light"] .markdown-content .token.comment,
+[data-theme="light"] .markdown-content .token.prolog,
+[data-theme="light"] .markdown-content .token.doctype,
+[data-theme="light"] .markdown-content .token.cdata {
+  color: #008000;
+}
+
+[data-theme="light"] .canvas-editor .token.property,
+[data-theme="light"] .canvas-editor .token.tag,
+[data-theme="light"] .canvas-editor .token.boolean,
+[data-theme="light"] .canvas-editor .token.number,
+[data-theme="light"] .canvas-editor .token.constant,
+[data-theme="light"] .canvas-editor .token.symbol,
+[data-theme="light"] .markdown-content .token.property,
+[data-theme="light"] .markdown-content .token.tag,
+[data-theme="light"] .markdown-content .token.boolean,
+[data-theme="light"] .markdown-content .token.number,
+[data-theme="light"] .markdown-content .token.constant,
+[data-theme="light"] .markdown-content .token.symbol {
+  color: #098658;
+}
+
+[data-theme="light"] .canvas-editor .token.selector,
+[data-theme="light"] .canvas-editor .token.attr-name,
+[data-theme="light"] .canvas-editor .token.string,
+[data-theme="light"] .canvas-editor .token.char,
+[data-theme="light"] .canvas-editor .token.builtin,
+[data-theme="light"] .markdown-content .token.selector,
+[data-theme="light"] .markdown-content .token.attr-name,
+[data-theme="light"] .markdown-content .token.string,
+[data-theme="light"] .markdown-content .token.char,
+[data-theme="light"] .markdown-content .token.builtin {
+  color: #a31515;
+}
+
+[data-theme="light"] .canvas-editor .token.atrule,
+[data-theme="light"] .canvas-editor .token.attr-value,
+[data-theme="light"] .canvas-editor .token.keyword,
+[data-theme="light"] .markdown-content .token.atrule,
+[data-theme="light"] .markdown-content .token.attr-value,
+[data-theme="light"] .markdown-content .token.keyword {
+  color: #0000ff;
+}
+
+[data-theme="light"] .canvas-editor .token.function,
+[data-theme="light"] .canvas-editor .token.class-name,
+[data-theme="light"] .markdown-content .token.function,
+[data-theme="light"] .markdown-content .token.class-name {
+  color: #795e26;
+}
+
+[data-theme="light"] .canvas-editor .token.variable,
+[data-theme="light"] .markdown-content .token.variable {
+  color: #001080;
+}
+
+/* Ensure proper layering */
+.canvas-editor .code-highlight-layer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  pointer-events: none;
+  overflow: hidden;
+  will-change: scroll-position;
+}
+
+.canvas-editor .code-input-layer {
+  position: relative;
+  z-index: 1;
+}
+
+/* Ensure caret is always visible and properly positioned */
+.canvas-editor textarea {
+  caret-color: var(--color-foreground) !important;
+  line-height: 1.5rem !important;
+}
+
+.canvas-editor textarea::selection {
+  background-color: rgba(100, 150, 255, 0.3);
+}
+
+/* Ensure pre and textarea have identical rendering */
+.canvas-editor pre {
+  margin: 0;
+  padding: 1rem;
+  line-height: 1.5rem;
+  font-size: 0.875rem;
+}
+
+.canvas-editor textarea,
+.canvas-editor pre {
+  font-family: 'Consolas', 'Monaco', 'Andale Mono', 'Ubuntu Mono', monospace !important;
+  font-size: 0.875rem !important;
+  line-height: 1.5rem !important;
+  letter-spacing: normal !important;
+  word-spacing: normal !important;
+  tab-size: 2 !important;
+  -moz-tab-size: 2 !important;
+}
+
+/* Performance optimization */
+.canvas-editor pre,
+.canvas-editor code {
+  contain: layout style paint;
+}
+
+/* Hide scrollbar in line numbers */
+.canvas-editor + div::-webkit-scrollbar {
+  display: none;
+}
+
+/* Ensure line numbers don't show scrollbar */
+div[style*="overflow-y: auto"]::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+
+/* Hide scrollbar in line numbers */
+.canvas-editor + div::-webkit-scrollbar {
+  display: none;
+}
+
+/* Ensure line numbers don't show scrollbar */
+div[style*="overflow-y: auto"]::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+
+/* Line numbers styling */
+.canvas-editor + .line-numbers {
+  user-select: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+}
+
+/* Smooth scrolling for line numbers */
+.canvas-editor .line-numbers-container {
+  overflow-y: hidden;
+  overflow-x: hidden;
+}
