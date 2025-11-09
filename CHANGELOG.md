@@ -5,6 +5,20 @@ All notable changes to OpenChat will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- **Enhanced Package Management** - Comprehensive package control in Canvas mode
+  - Individual package uninstallation with language-specific package managers
+  - Two-action system: full uninstall (trash icon) or list removal (X icon)
+  - Improved package dropdown UI with install input and danger zone
+  - Support for 7 languages: Python (pip), JavaScript/TypeScript (npm), Ruby (gem), Rust (cargo), Go (go), PHP (composer)
+  - Clear package list function (removes from list without uninstalling)
+  - Enhanced clean environment function with detailed feedback
+  - Better error handling and user feedback
+  - Hover-based action buttons for cleaner interface
+  - Confirmation dialogs with clear explanations
+
 ## [0.6.0] - 2025-01-24
 
 ### Added

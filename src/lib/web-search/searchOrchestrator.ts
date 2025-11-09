@@ -9,16 +9,15 @@
  * - Handles errors with retry logic and exponential backoff
  */
 
-import { searchEngineFactory } from './searchEngineFactory';
 import { BackendScraper } from './backendScraper';
 import { SourceRegistry } from './sourceRegistry';
+import { smartSearchManager } from './SmartSearchManager';
 import type {
   SearchResult,
   ScrapedContent,
   SearchContext,
   CacheEntry,
   SearchStats,
-  SearchErrorType,
   ContentMetadata
 } from './types';
 
@@ -141,7 +140,7 @@ export class SearchOrchestrator {
   }
 
   /**
-   * Perform a complete search operation
+   * Perform a complete search operation using smart provider selection
    * @param query Search query
    * @param maxResults Maximum number of results to return
    * @returns Array of search results
@@ -155,10 +154,14 @@ export class SearchOrchestrator {
       
       this.stats.totalSearches++;
       
-      // Execute search with retry logic using factory (automatic fallback)
-      const results = await this.executeWithRetry(
-        () => searchEngineFactory.search(query, maxResults),
-        'search'
+      // Use SmartSearchManager for intelligent provider selection and fallback
+      const { results, metadata } = await smartSearchManager.search(query, maxResults);
+      
+      // Log search metadata
+      console.log(
+        `[SearchOrchestrator] Search completed via ${metadata.provider}: ` +
+        `${metadata.resultCount} results in ${metadata.searchTime}ms ` +
+        `(cost: $${metadata.cost.toFixed(4)}${metadata.usedFallback ? ', used fallback' : ''})`
       );
       
       // Track search time
@@ -168,7 +171,7 @@ export class SearchOrchestrator {
       return results;
       
     } catch (error) {
-      console.error('Search failed after retries:', error);
+      console.error('Search failed:', error);
       throw error;
     }
   }
@@ -569,105 +572,6 @@ export class SearchOrchestrator {
     this.stats.averageSearchTime = sum / this.searchTimes.length;
   }
 
-  /**
-   * Execute operation with retry logic and exponential backoff
-   */
-  private async executeWithRetry<T>(
-    operation: () => Promise<T>,
-    operationName: string,
-    maxRetries: number = this.config.maxRetries
-  ): Promise<T> {
-    let lastError: any;
-    
-    for (let attempt = 0; attempt <= maxRetries; attempt++) {
-      try {
-        return await this.executeWithTimeout(
-          operation(),
-          this.config.scrapingTimeout,
-          operationName
-        );
-      } catch (error: any) {
-        lastError = error;
-        
-        // Check if error is retryable
-        if (!this.isRetryable(error)) {
-          throw error;
-        }
-        
-        // Don't retry on last attempt
-        if (attempt === maxRetries) {
-          break;
-        }
-        
-        // Calculate backoff time: 2^attempt * 1000ms
-        const backoffTime = Math.pow(2, attempt) * 1000;
-        console.warn(
-          `${operationName} failed (attempt ${attempt + 1}/${maxRetries + 1}), ` +
-          `retrying in ${backoffTime}ms...`,
-          error
-        );
-        
-        await this.sleep(backoffTime);
-      }
-    }
-    
-    // All retries exhausted
-    console.error(`${operationName} failed after ${maxRetries + 1} attempts`);
-    throw lastError;
-  }
-
-  /**
-   * Execute operation with timeout
-   */
-  private async executeWithTimeout<T>(
-    promise: Promise<T>,
-    timeoutMs: number,
-    operationName: string
-  ): Promise<T> {
-    const timeoutPromise = new Promise<never>((_, reject) => {
-      setTimeout(() => {
-        reject({
-          type: 'timeout' as SearchErrorType,
-          message: `${operationName} timed out after ${timeoutMs}ms`,
-          retryable: true
-        });
-      }, timeoutMs);
-    });
-
-    return Promise.race([promise, timeoutPromise]);
-  }
-
-  /**
-   * Check if error is retryable
-   */
-  private isRetryable(error: any): boolean {
-    if (error && typeof error === 'object') {
-      // Check explicit retryable flag
-      if ('retryable' in error) {
-        return error.retryable === true;
-      }
-      
-      // Check error type
-      if ('type' in error) {
-        const retryableTypes: SearchErrorType[] = [
-          'network_error' as SearchErrorType,
-          'timeout' as SearchErrorType,
-          'rate_limited' as SearchErrorType
-        ];
-        return retryableTypes.includes(error.type);
-      }
-    }
-    
-    // Default: retry on network-like errors
-    return true;
-  }
-
-  /**
-   * Sleep for specified milliseconds
-   */
-  private sleep(ms: number): Promise<void> {
-    return new Promise(resolve => setTimeout(resolve, ms));
-  }
 }
 
 // ============================================================================

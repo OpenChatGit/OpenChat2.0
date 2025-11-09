@@ -4,7 +4,7 @@ import { useState, useCallback, useRef, useEffect } from 'react'
 import type { ChatSession, Message, ProviderConfig, ImageAttachment } from '../types'
 import { ProviderFactory } from '../providers'
 import { generateId } from '../lib/utils'
-import { AutoSearchManager } from '../lib/web-search/autoSearchManager'
+import { AutoSearchAdapter } from '../lib/web-search/AutoSearchAdapter'
 import type { SearchContext } from '../lib/web-search/types'
 import type { WebSearchSettings } from '../components/WebSearchSettings'
 import { loadWebSearchSettings, saveWebSearchSettings } from '../lib/web-search/settingsStorage'
@@ -223,6 +223,211 @@ console.log('Hello from script.js!');
 
 💡 The hidden tags help the system identify and organize multiple files!
 
+═══════════════════════════════════════════════════════════
+🔗 FILE LINKING RULES - CRITICAL FOR PREVIEW! 🔗
+═══════════════════════════════════════════════════════════
+
+When linking files in HTML, use SIMPLE RELATIVE PATHS:
+
+✅ CORRECT LINKING:
+<link rel="stylesheet" href="styles.css">
+<script src="script.js"></script>
+<script src="app.js"></script>
+
+❌ WRONG LINKING:
+<link rel="stylesheet" href="./styles.css">  ← NO ./
+<link rel="stylesheet" href="/styles.css">   ← NO /
+<script src="./script.js"></script>          ← NO ./
+<script src="/js/script.js"></script>        ← NO folders
+
+🎯 LINKING RULES:
+1. Use ONLY the filename (no ./ or / prefix)
+2. Keep all files in the SAME LEVEL (no folders)
+3. The Canvas preview system automatically combines files
+4. CSS files are auto-injected into <head>
+5. JS files are auto-injected before </body>
+
+📝 COMPLETE MULTI-FILE EXAMPLE:
+
+{code_block_1_index.html}
+\`\`\`html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My App</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div id="app">
+        <h1>Hello World</h1>
+        <button id="btn">Click Me</button>
+    </div>
+    <script src="script.js"></script>
+</body>
+</html>
+\`\`\`
+
+{code_block_2_styles.css}
+\`\`\`css
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: Arial, sans-serif;
+    padding: 20px;
+}
+
+#app {
+    max-width: 800px;
+    margin: 0 auto;
+}
+
+button {
+    padding: 10px 20px;
+    background: #007bff;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+}
+
+button:hover {
+    background: #0056b3;
+}
+\`\`\`
+
+{code_block_3_script.js}
+\`\`\`javascript
+document.getElementById('btn').addEventListener('click', () => {
+    alert('Button clicked!');
+});
+
+console.log('App initialized!');
+\`\`\`
+
+⚡ PREVIEW BEHAVIOR:
+- Click "Run" to see the combined preview
+- All CSS is automatically included
+- All JS is automatically included
+- Files are combined in the correct order
+- Preview updates when you edit any file
+
+🚨 COMMON MISTAKES:
+❌ href="./styles.css"     → Use href="styles.css"
+❌ src="/js/script.js"     → Use src="script.js"
+❌ Complex folder structure → Keep files flat
+❌ Missing <link> tags      → Always link CSS in HTML
+❌ Missing <script> tags    → Always link JS in HTML
+
+═══════════════════════════════════════════════════════════
+📦 EXTERNAL LIBRARIES & CDN - IMPORTANT! 📦
+═══════════════════════════════════════════════════════════
+
+When using EXTERNAL LIBRARIES (React, Vue, jQuery, Bootstrap, etc.):
+
+✅ ALWAYS include CDN links in HTML:
+
+**Example with React:**
+{code_block_1_index.html}
+\`\`\`html
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>React App</title>
+    <!-- React CDN -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div id="root"></div>
+    <script type="text/babel" src="app.js"></script>
+</body>
+</html>
+\`\`\`
+
+**Example with jQuery:**
+{code_block_1_index.html}
+\`\`\`html
+<!DOCTYPE html>
+<html>
+<head>
+    <title>jQuery App</title>
+    <!-- jQuery CDN -->
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <h1>Hello jQuery</h1>
+    <script src="script.js"></script>
+</body>
+</html>
+\`\`\`
+
+**Example with Bootstrap:**
+{code_block_1_index.html}
+\`\`\`html
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Bootstrap App</title>
+    <!-- Bootstrap CDN -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <h1 class="text-primary">Hello Bootstrap</h1>
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>
+\`\`\`
+
+🎯 CDN RULES:
+1. ALWAYS include CDN links BEFORE local files
+2. Use HTTPS URLs for CDN links
+3. Include ALL required dependencies
+4. Check library documentation for correct CDN links
+5. For React, include Babel for JSX support
+
+📚 POPULAR CDN SOURCES:
+- unpkg.com - For npm packages
+- cdnjs.com - General purpose CDN
+- jsdelivr.net - Fast CDN for npm and GitHub
+- code.jquery.com - jQuery official CDN
+- cdn.tailwindcss.com - Tailwind CSS
+
+⚡ IMPORT ORDER:
+1. External CSS (Bootstrap, Tailwind, etc.)
+2. Local CSS files (styles.css)
+3. External JS libraries (React, jQuery, etc.)
+4. Local JS files (script.js, app.js)
+
+✅ CORRECT ORDER:
+<head>
+    <!-- 1. External CSS -->
+    <link href="https://cdn.../bootstrap.min.css" rel="stylesheet">
+    <!-- 2. Local CSS -->
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <!-- Content -->
+    
+    <!-- 3. External JS -->
+    <script src="https://cdn.../jquery.min.js"></script>
+    <!-- 4. Local JS -->
+    <script src="script.js"></script>
+</body>
+
 ═══════════════════════════════════════════════════════════`
 
 export function useChatWithTools() {
@@ -264,7 +469,7 @@ export function useChatWithTools() {
   const [canvasToolsEnabled, setCanvasToolsEnabled] = useState(false)
 
   const streamingContentRef = useRef<string>('')
-  const autoSearchManager = useRef(new AutoSearchManager())
+  const autoSearchManager = useRef(new AutoSearchAdapter())
   const settingsInitialized = useRef(false)
 
   // Save sessions to localStorage whenever they change

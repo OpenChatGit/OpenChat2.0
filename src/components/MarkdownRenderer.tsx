@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { marked } from 'marked'
 import DOMPurify from 'dompurify'
 import Prism from 'prismjs'
+import { openUrl } from '@tauri-apps/plugin-opener'
 
 // Import Prism languages
 import 'prismjs/components/prism-markup'
@@ -30,25 +31,20 @@ interface MarkdownRendererProps {
   content: string
 }
 
-// Configure marked with custom renderer for code blocks
+// Configure marked with custom renderer for code blocks and links
 const renderer = new marked.Renderer()
 
+// Custom link renderer to open in external browser
+renderer.link = ({ href, title, tokens }: any) => {
+  const text = tokens && tokens.length > 0 ? tokens[0].text : href
+  const titleAttr = title ? ` title="${title}"` : ''
+  return `<a href="${href}"${titleAttr} target="_blank" rel="noopener noreferrer" data-external-link="true">${text}</a>`
+}
+
 // Custom code block renderer with Prism highlighting
-renderer.code = (codeInput: any, languageInput: any) => {
-  // Handle both string and object inputs from marked
-  let codeString = ''
-  let language = ''
-  
-  // Check if codeInput is an object (marked v12+ format)
-  if (typeof codeInput === 'object' && codeInput !== null) {
-    codeString = String(codeInput.text || codeInput.raw || '')
-    language = String(codeInput.lang || languageInput || '')
-  } else {
-    // Legacy format (string)
-    codeString = String(codeInput || '')
-    language = String(languageInput || '')
-  }
-  
+renderer.code = ({ text, lang }: any) => {
+  const codeString = String(text || '')
+  const language = String(lang || '')
   const validLanguage = language && Prism.languages[language] ? language : 'plaintext'
   
   try {
@@ -58,7 +54,7 @@ renderer.code = (codeInput: any, languageInput: any) => {
     
     return `<pre class="language-${validLanguage}"><code class="language-${validLanguage}">${highlighted}</code></pre>`
   } catch (error) {
-    console.error('Prism highlighting error:', error, { codeInput, languageInput })
+    console.error('Prism highlighting error:', error)
     // Fallback to escaped code
     const escaped = codeString.replace(/</g, '&lt;').replace(/>/g, '&gt;')
     return `<pre class="language-${validLanguage}"><code class="language-${validLanguage}">${escaped}</code></pre>`
@@ -73,6 +69,7 @@ marked.setOptions({
 
 export function MarkdownRenderer({ content }: MarkdownRendererProps) {
   const [html, setHtml] = useState('')
+  const containerRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     const renderMarkdown = async () => {
@@ -83,7 +80,7 @@ export function MarkdownRenderer({ content }: MarkdownRendererProps) {
         // Sanitize HTML
         const cleanHtml = DOMPurify.sanitize(rawHtml, {
           ADD_TAGS: ['iframe'],
-          ADD_ATTR: ['allow', 'allowfullscreen', 'frameborder', 'scrolling', 'class'],
+          ADD_ATTR: ['allow', 'allowfullscreen', 'frameborder', 'scrolling', 'class', 'target', 'rel', 'data-external-link'],
         })
         
         setHtml(cleanHtml)
@@ -106,8 +103,43 @@ export function MarkdownRenderer({ content }: MarkdownRendererProps) {
     }
   }, [html])
 
+  // Handle link clicks to open in external browser
+  useEffect(() => {
+    const container = containerRef.current
+    if (!container) return
+
+    const handleClick = async (e: MouseEvent) => {
+      const target = e.target as HTMLElement
+      
+      // Check if clicked element is a link or inside a link
+      const link = target.closest('a[href]') as HTMLAnchorElement
+      if (!link) return
+
+      // Prevent default navigation
+      e.preventDefault()
+      e.stopPropagation()
+
+      const href = link.getAttribute('href')
+      if (!href) return
+
+      try {
+        console.log('[MarkdownRenderer] Opening external link:', href)
+        // Open in external browser using Tauri
+        await openUrl(href)
+      } catch (error) {
+        console.error('[MarkdownRenderer] Failed to open external link:', error)
+        // Fallback: try window.open
+        window.open(href, '_blank', 'noopener,noreferrer')
+      }
+    }
+
+    container.addEventListener('click', handleClick)
+    return () => container.removeEventListener('click', handleClick)
+  }, [html])
+
   return (
     <div
+      ref={containerRef}
       className="prose prose-invert max-w-none markdown-content"
       dangerouslySetInnerHTML={{ __html: html }}
       style={{

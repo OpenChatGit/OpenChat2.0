@@ -1,0 +1,70 @@
+/* Canvas Preview Styling - Prevents layout breaking */
+
+/* Constrain all media elements */
+.prose img,
+.prose video,
+.prose iframe,
+.prose embed,
+.prose object {
+  max-width: 100% !important;
+  height: auto !important;
+  display: block;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+/* Prevent tables from breaking layout */
+.prose table {
+  display: block;
+  max-width: 100%;
+  overflow-x: auto;
+  white-space: nowrap;
+}
+
+/* Prevent code blocks from breaking layout */
+.prose pre {
+  max-width: 100%;
+  overflow-x: auto;
+  word-wrap: normal;
+  white-space: pre;
+}
+
+/* Prevent long words from breaking layout */
+.prose {
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  word-break: break-word;
+}
+
+/* Prevent long URLs from breaking layout */
+.prose a {
+  word-break: break-all;
+  overflow-wrap: anywhere;
+}
+
+/* Ensure container respects boundaries */
+.prose {
+  max-width: 100%;
+  overflow: hidden;
+}
+
+/* Responsive images in different zoom levels */
+.prose img {
+  object-fit: contain;
+  max-height: 80vh;
+}
+
+/* Prevent horizontal overflow */
+.prose * {
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+/* Special handling for very large images */
+.prose img[width],
+.prose img[height] {
+  width: auto !important;
+  height: auto !important;
+  max-width: 100% !important;
+  max-height: 80vh !important;
+}

@@ -3,6 +3,7 @@ import { Button } from './ui/Button'
 import { Input } from './ui/Input'
 import { Toggle } from './ui/Toggle'
 import { Slider } from './ui/Slider'
+import { WebSearchProviderSettings } from './WebSearchProviderSettings'
 import type { RAGConfig } from '../lib/web-search/types'
 import { DEFAULT_RAG_CONFIG } from '../lib/web-search/types'
 
@@ -63,11 +64,17 @@ export function WebSearchSettings({
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
+      {/* Provider Settings Section */}
+      <WebSearchProviderSettings />
+
+      {/* Divider */}
+      <div className="border-t border-border" />
+
       {/* Header with Reset Button */}
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-lg font-semibold">Web Search Configuration</h3>
+          <h3 className="text-lg font-semibold">Search Behavior Configuration</h3>
           <p className="text-sm text-muted-foreground mt-1">
             Configure automatic web search and RAG processing
           </p>

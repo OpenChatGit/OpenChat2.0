@@ -1,8 +1,9 @@
 import { useState, useRef, useEffect } from 'react'
-import { Play, Copy, Download, RotateCcw, Check, ChevronRight, ChevronLeft, Square, X, Sun, Moon, Terminal as TerminalIcon, MessageSquare, ChevronDown, Trash2, Edit2, Package } from 'lucide-react'
+import { Play, Copy, Download, RotateCcw, Check, ChevronRight, ChevronLeft, Square, X, Sun, Moon, Terminal as TerminalIcon, MessageSquare, ChevronDown, Trash2, Edit2, Package, ZoomIn, ZoomOut } from 'lucide-react'
 import editSquareIcon from '../assets/edit_square.svg'
 import { Terminal } from './Terminal'
 import { ChatMessage } from './ChatMessage'
+import { SafeMarkdownPreview } from './SafeMarkdownPreview'
 import { cn } from '../lib/utils'
 import { ChatInput } from './ChatInput'
 import type { ImageAttachment, ProviderConfig, ModelInfo } from '../types'
@@ -11,6 +12,7 @@ import { marked } from 'marked'
 import Editor from 'react-simple-code-editor'
 import '../styles/prism-custom.css'
 import '../styles/markdown-preview.css'
+import '../styles/canvas-preview.css'
 
 // Import core languages first (required by other languages)
 import 'prismjs/components/prism-markup'
@@ -120,6 +122,7 @@ export function Canvas({
   })
   const [isPreviewMode, setIsPreviewMode] = useState(false)
   const [previewDarkMode, setPreviewDarkMode] = useState(false)
+  const [previewZoom, setPreviewZoom] = useState(100) // percentage
   const [showTerminal, setShowTerminal] = useState(false)
   const [currentFilename, setCurrentFilename] = useState<string>('')
   const [editorWidth, setEditorWidth] = useState(50) // percentage
@@ -1180,22 +1183,46 @@ export function Canvas({
       
       // Determine package manager and command based on language
       let installCommand = ''
+      let packageManager = 'unknown'
+      
       if (detectedLanguage === 'python') {
         // Use venv's pip to install in isolated environment
         const pipPath = venvPath ? `${venvPath}\\Scripts\\pip` : 'pip'
         installCommand = `${pipPath} install ${pkg}`
+        packageManager = 'pip'
       } else if (detectedLanguage === 'javascript' || detectedLanguage === 'typescript') {
         // Install to local node_modules in session directory
         const sessionEnvDir = nodeModulesPath || `.canvas_env_${currentSession?.id || 'default'}`
+        
+        // Try to detect which package manager to use (npm, yarn, pnpm)
+        // For now, default to npm (can be extended to detect lock files)
         installCommand = `npm install ${pkg} --prefix ${sessionEnvDir}`
+        packageManager = 'npm'
+        
         if (!nodeModulesPath) setNodeModulesPath(sessionEnvDir)
+      } else if (detectedLanguage === 'ruby') {
+        // Ruby gems
+        installCommand = `gem install ${pkg}`
+        packageManager = 'gem'
+      } else if (detectedLanguage === 'rust') {
+        // Rust cargo (note: cargo add requires cargo-edit)
+        installCommand = `cargo add ${pkg}`
+        packageManager = 'cargo'
+      } else if (detectedLanguage === 'go') {
+        // Go modules
+        installCommand = `go get ${pkg}`
+        packageManager = 'go'
+      } else if (detectedLanguage === 'php') {
+        // PHP composer
+        installCommand = `composer require ${pkg}`
+        packageManager = 'composer'
       } else {
-        setOutput(`⚠️ Package installation not supported for ${detectedLanguage}`)
+        setOutput(`⚠️ Package installation not supported for ${detectedLanguage}\n\nSupported languages:\n• Python (pip)\n• JavaScript/TypeScript (npm)\n• Ruby (gem)\n• Rust (cargo)\n• Go (go get)\n• PHP (composer)`)
         setIsInstallingPackage(false)
         return
       }
       
-      setOutput(`📦 Installing ${pkg} in isolated environment...\n`)
+      setOutput(`📦 Installing ${pkg} via ${packageManager} in isolated environment...\n`)
       
       const result = await invoke<{ stdout: string; stderr: string; exit_code: number }>('run_terminal_command', {
         command: installCommand,
@@ -1203,11 +1230,11 @@ export function Canvas({
       })
       
       if (result.exit_code === 0) {
-        setOutput(prev => prev + `✓ Successfully installed ${pkg} (sandboxed)\n\n${result.stdout}`)
+        setOutput(prev => prev + `✓ Successfully installed ${pkg} via ${packageManager}\n\n${result.stdout}`)
         setInstalledPackages(prev => [...prev, pkg])
         setPackageToInstall('')
       } else {
-        const errorMsg = `Failed to install ${pkg}: ${result.stderr}`
+        const errorMsg = `Failed to install ${pkg} via ${packageManager}: ${result.stderr}`
         setOutput(prev => prev + `✗ ${errorMsg}\n`)
         setPackageErrors(prev => [...prev, errorMsg])
       }
@@ -1217,6 +1244,61 @@ export function Canvas({
       setPackageErrors(prev => [...prev, errorMsg])
     } finally {
       setIsInstallingPackage(false)
+    }
+  }
+
+  const handleRemovePackage = async (packageName: string, index: number) => {
+    if (!packageName.trim()) return
+    
+    try {
+      const { invoke } = await import('@tauri-apps/api/core')
+      
+      // Determine uninstall command based on language
+      let uninstallCommand = ''
+      let packageManager = 'unknown'
+      
+      if (detectedLanguage === 'python') {
+        const pipPath = venvPath ? `${venvPath}\\Scripts\\pip` : 'pip'
+        uninstallCommand = `${pipPath} uninstall -y ${packageName}`
+        packageManager = 'pip'
+      } else if (detectedLanguage === 'javascript' || detectedLanguage === 'typescript') {
+        const sessionEnvDir = nodeModulesPath || `.canvas_env_${currentSession?.id || 'default'}`
+        uninstallCommand = `npm uninstall ${packageName} --prefix ${sessionEnvDir}`
+        packageManager = 'npm'
+      } else if (detectedLanguage === 'ruby') {
+        uninstallCommand = `gem uninstall -x ${packageName}`
+        packageManager = 'gem'
+      } else if (detectedLanguage === 'rust') {
+        uninstallCommand = `cargo remove ${packageName}`
+        packageManager = 'cargo'
+      } else if (detectedLanguage === 'go') {
+        // Go doesn't have a direct uninstall, but we can remove from go.mod
+        uninstallCommand = `go mod edit -droprequire ${packageName}`
+        packageManager = 'go'
+      } else if (detectedLanguage === 'php') {
+        uninstallCommand = `composer remove ${packageName}`
+        packageManager = 'composer'
+      }
+      
+      setOutput(`🗑️ Uninstalling ${packageName} via ${packageManager}...\n`)
+      
+      const result = await invoke<{ stdout: string; stderr: string; exit_code: number }>('run_terminal_command', {
+        command: uninstallCommand,
+        workingDir: undefined
+      })
+      
+      if (result.exit_code === 0) {
+        setOutput(prev => prev + `✓ Successfully uninstalled ${packageName}\n\n${result.stdout}`)
+        setInstalledPackages(prev => prev.filter((_, i) => i !== index))
+      } else {
+        setOutput(prev => prev + `⚠️ Uninstall completed with warnings:\n${result.stderr}\n`)
+        // Still remove from list even if uninstall had warnings
+        setInstalledPackages(prev => prev.filter((_, i) => i !== index))
+      }
+    } catch (error) {
+      const errorMsg = `Error uninstalling ${packageName}: ${error instanceof Error ? error.message : 'Unknown error'}`
+      setOutput(`✗ ${errorMsg}`)
+      setPackageErrors(prev => [...prev, errorMsg])
     }
   }
 
@@ -1234,17 +1316,32 @@ export function Canvas({
           command: `rmdir /s /q ${sessionEnvDir}`,
           workingDir: undefined
         })
-        setOutput(prev => prev + '✓ Environment cleaned up\n')
+        setOutput(prev => prev + '✓ Environment cleaned up successfully\n')
+        setOutput(prev => prev + `✓ Removed ${installedPackages.length} package(s)\n`)
+        setOutput(prev => prev + '✓ Freed disk space\n')
         setVenvPath('')
         setNodeModulesPath('')
         setInstalledPackages([])
         setPackageErrors([])
       } catch (error) {
         setOutput(prev => prev + '⚠️ No environment to clean up\n')
+        // Still clear the lists
+        setInstalledPackages([])
+        setPackageErrors([])
       }
     } catch (error) {
       setOutput(`✗ Error cleaning up: ${error instanceof Error ? error.message : 'Unknown error'}`)
     }
+  }
+  
+  const handleClearPackageList = () => {
+    setInstalledPackages([])
+    setOutput('✓ Package list cleared\n\nNote: Packages are still installed on disk. Use "Clean Environment" to fully remove them.')
+  }
+  
+  const handleClearErrors = () => {
+    setPackageErrors([])
+    setOutput('✓ Error list cleared')
   }
 
   const handleCopy = async () => {
@@ -1669,8 +1766,8 @@ export function Canvas({
                 </span>
               </div>
               <div className="flex items-center gap-1">
-                {/* Package Manager Button - Only for Python/JS/TS */}
-                {(detectedLanguage === 'python' || detectedLanguage === 'javascript' || detectedLanguage === 'typescript') && (
+                {/* Package Manager Button - Supports multiple languages */}
+                {(['python', 'javascript', 'typescript', 'ruby', 'rust', 'go', 'php'].includes(detectedLanguage)) && (
                   <button
                     onClick={() => setShowPackageManager(!showPackageManager)}
                     className={`p-1.5 rounded-lg hover:bg-white/10 transition-colors ${showPackageManager ? 'bg-primary/20' : ''}`}
@@ -1838,12 +1935,12 @@ export function Canvas({
 
           {/* Output Panel - Collapsible */}
           {showOutput && (
-            <div className="flex-1 flex flex-col" style={{ width: `${100 - editorWidth}%` }}>
-              <div className="px-4 py-2.5 border-b text-sm font-medium bg-muted/30 h-10 flex items-center justify-between" style={{ borderColor: 'var(--color-dropdown-border)' }}>
+            <div className="flex-1 flex flex-col overflow-hidden" style={{ width: `${100 - editorWidth}%`, minWidth: 0 }}>
+              <div className="px-4 py-2.5 border-b text-sm font-medium bg-muted/30 h-10 flex items-center justify-between flex-shrink-0" style={{ borderColor: 'var(--color-dropdown-border)' }}>
                 <span>{showTerminal ? 'Terminal' : 'Output'}</span>
                 <div className="flex items-center gap-1">
                   {/* Package Manager Dropdown */}
-                  {(detectedLanguage === 'python' || detectedLanguage === 'javascript' || detectedLanguage === 'typescript') && (
+                  {(['python', 'javascript', 'typescript', 'ruby', 'rust', 'go', 'php'].includes(detectedLanguage)) && (
                     <div className="relative" ref={packageDropdownRef}>
                       <button
                         onClick={() => setShowPackageDropdown(!showPackageDropdown)}
@@ -1878,18 +1975,54 @@ export function Canvas({
                           
                           {/* Installed Packages */}
                           <div className="px-4 py-3 border-b" style={{ borderColor: 'var(--color-dropdown-border)' }}>
-                            <div className="text-xs font-semibold text-muted-foreground mb-2">
-                              Installed Packages ({installedPackages.length})
+                            <div className="flex items-center justify-between mb-2">
+                              <div className="text-xs font-semibold text-muted-foreground">
+                                Installed Packages ({installedPackages.length})
+                              </div>
+                              {installedPackages.length > 0 && (
+                                <button
+                                  onClick={() => {
+                                    if (confirm(`Clear package list?\n\nThis will:\n• Remove ${installedPackages.length} package(s) from the list\n• NOT uninstall packages from disk\n\nTo fully remove packages, use "Clean Environment".`)) {
+                                      handleClearPackageList()
+                                    }
+                                  }}
+                                  className="text-xs text-blue-400 hover:text-blue-300 transition-colors"
+                                >
+                                  Clear List
+                                </button>
+                              )}
                             </div>
                             {installedPackages.length > 0 ? (
                               <div className="space-y-1 max-h-40 overflow-y-auto">
                                 {installedPackages.map((pkg, index) => (
                                   <div 
                                     key={index}
-                                    className="flex items-center gap-2 px-2 py-1.5 rounded bg-green-500/10 text-sm"
+                                    className="flex items-center gap-2 px-2 py-1.5 rounded bg-green-500/10 text-sm group hover:bg-green-500/20 transition-colors"
                                   >
                                     <Check className="w-3.5 h-3.5 text-green-500 flex-shrink-0" />
                                     <span className="flex-1 truncate">{pkg}</span>
+                                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                      <button
+                                        onClick={() => {
+                                          if (confirm(`Uninstall ${pkg}?\n\nThis will:\n• Remove ${pkg} from disk\n• Free up disk space\n• Remove from package list\n\nYou can reinstall it later if needed.`)) {
+                                            handleRemovePackage(pkg, index)
+                                          }
+                                        }}
+                                        className="p-1 rounded hover:bg-red-500/30 transition-all"
+                                        title={`Uninstall ${pkg}`}
+                                      >
+                                        <Trash2 className="w-3 h-3 text-red-400" />
+                                      </button>
+                                      <button
+                                        onClick={() => {
+                                          setInstalledPackages(prev => prev.filter((_, i) => i !== index))
+                                        }}
+                                        className="p-1 rounded hover:bg-yellow-500/30 transition-all"
+                                        title={`Remove ${pkg} from list only`}
+                                      >
+                                        <X className="w-3 h-3 text-yellow-400" />
+                                      </button>
+                                    </div>
                                   </div>
                                 ))}
                               </div>
@@ -1903,16 +2036,31 @@ export function Canvas({
                           {/* Errors */}
                           {packageErrors.length > 0 && (
                             <div className="px-4 py-3 border-b" style={{ borderColor: 'var(--color-dropdown-border)' }}>
-                              <div className="text-xs font-semibold text-red-400 mb-2">
-                                Errors ({packageErrors.length})
+                              <div className="flex items-center justify-between mb-2">
+                                <div className="text-xs font-semibold text-red-400">
+                                  Errors ({packageErrors.length})
+                                </div>
+                                <button
+                                  onClick={handleClearErrors}
+                                  className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                                >
+                                  Clear All
+                                </button>
                               </div>
                               <div className="space-y-1 max-h-32 overflow-y-auto">
                                 {packageErrors.map((error, index) => (
                                   <div 
                                     key={index}
-                                    className="px-2 py-1.5 rounded bg-red-500/10 text-xs text-red-400"
+                                    className="flex items-start gap-2 px-2 py-1.5 rounded bg-red-500/10 text-xs text-red-400 group hover:bg-red-500/20 transition-colors"
                                   >
-                                    {error}
+                                    <span className="flex-1 break-words">{error}</span>
+                                    <button
+                                      onClick={() => setPackageErrors(prev => prev.filter((_, i) => i !== index))}
+                                      className="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-red-500/30 transition-all flex-shrink-0"
+                                      title="Remove error"
+                                    >
+                                      <X className="w-3 h-3" />
+                                    </button>
                                   </div>
                                 ))}
                               </div>
@@ -1920,25 +2068,66 @@ export function Canvas({
                           )}
                           
                           {/* Actions */}
-                          <div className="px-4 py-3 flex gap-2">
-                            <button
-                              onClick={() => {
-                                setPackageErrors([])
-                                setShowPackageDropdown(false)
-                              }}
-                              className="flex-1 px-3 py-1.5 text-xs rounded-lg bg-white/10 hover:bg-white/20 transition-colors"
-                            >
-                              Clear Errors
-                            </button>
-                            <button
-                              onClick={() => {
-                                handleCleanupEnvironment()
-                                setShowPackageDropdown(false)
-                              }}
-                              className="flex-1 px-3 py-1.5 text-xs rounded-lg bg-red-500/80 text-white hover:bg-red-500 transition-colors"
-                            >
-                              Clean All
-                            </button>
+                          <div className="px-4 py-3 space-y-2">
+                            {/* Install Package Input */}
+                            <div className="space-y-2 pb-2 border-b" style={{ borderColor: 'var(--color-dropdown-border)' }}>
+                              <div className="text-xs font-semibold text-muted-foreground">
+                                Install New Package
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <input
+                                  type="text"
+                                  value={packageToInstall}
+                                  onChange={(e) => setPackageToInstall(e.target.value)}
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter' && !isInstallingPackage) {
+                                      handleInstallPackage()
+                                    }
+                                  }}
+                                  placeholder={detectedLanguage === 'python' ? 'e.g., requests' : 'e.g., axios'}
+                                  className="flex-1 px-2 py-1.5 text-xs rounded-lg border bg-background"
+                                  style={{
+                                    backgroundColor: 'var(--color-background)',
+                                    borderColor: 'var(--color-dropdown-border)',
+                                    color: 'var(--color-foreground)'
+                                  }}
+                                  disabled={isInstallingPackage}
+                                />
+                                <button
+                                  onClick={handleInstallPackage}
+                                  disabled={isInstallingPackage || !packageToInstall.trim()}
+                                  className="px-3 py-1.5 text-xs rounded-lg bg-primary text-primary-foreground hover:opacity-90 transition-opacity disabled:opacity-50 font-medium"
+                                >
+                                  {isInstallingPackage ? '...' : 'Install'}
+                                </button>
+                              </div>
+                            </div>
+                            
+                            {/* Danger Zone */}
+                            <div className="space-y-2 pt-2">
+                              <div className="text-xs font-semibold text-red-400">
+                                ⚠️ Danger Zone
+                              </div>
+                              
+                              {/* Clean Environment */}
+                              <button
+                                onClick={() => {
+                                  if (confirm(`🗑️ Clean entire environment?\n\nThis will:\n• Delete venv/node_modules folders\n• Uninstall all ${installedPackages.length} package(s)\n• Clear package list and errors\n• Free up disk space\n\nYou'll need to reinstall packages after this.\n\nContinue?`)) {
+                                    handleCleanupEnvironment()
+                                    setShowPackageDropdown(false)
+                                  }
+                                }}
+                                className="w-full px-3 py-2 text-xs rounded-lg bg-red-500/80 text-white hover:bg-red-500 transition-colors font-medium flex items-center justify-center gap-2"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                                Clean Environment
+                              </button>
+                              
+                              {/* Info Text */}
+                              <div className="text-[10px] text-muted-foreground leading-relaxed">
+                                💡 Tip: Use individual package uninstall (trash icon) to remove specific packages, or "Clean Environment" to remove everything.
+                              </div>
+                            </div>
                           </div>
                         </div>
                       )}
@@ -1952,14 +2141,47 @@ export function Canvas({
                   >
                     <TerminalIcon className="w-3.5 h-3.5" />
                   </button>
-                  {!showTerminal && (output.startsWith('MARKDOWN_PREVIEW:') || output === 'PREVIEW_MODE') && (
-                    <button
-                      onClick={() => setPreviewDarkMode(!previewDarkMode)}
-                      className="p-1.5 rounded-lg hover:bg-white/10 transition-colors"
-                      title={previewDarkMode ? "Switch to light mode" : "Switch to dark mode"}
-                    >
-                      {previewDarkMode ? <Sun className="w-3.5 h-3.5" /> : <Moon className="w-3.5 h-3.5" />}
-                    </button>
+                  {!showTerminal && (output.startsWith('MARKDOWN_PREVIEW:') || output === 'PREVIEW_MODE' || output.startsWith('HTML_PREVIEW:')) && (
+                    <>
+                      {/* Zoom Controls */}
+                      <div className="flex items-center gap-1 border-r border-white/10 pr-2">
+                        <button
+                          onClick={() => setPreviewZoom(Math.max(25, previewZoom - 10))}
+                          className="p-1.5 rounded-lg hover:bg-white/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                          title="Zoom out"
+                          disabled={previewZoom <= 25}
+                        >
+                          <ZoomOut className="w-3.5 h-3.5" />
+                        </button>
+                        <span className="text-xs font-mono min-w-[3rem] text-center">
+                          {previewZoom}%
+                        </span>
+                        <button
+                          onClick={() => setPreviewZoom(Math.min(200, previewZoom + 10))}
+                          className="p-1.5 rounded-lg hover:bg-white/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                          title="Zoom in"
+                          disabled={previewZoom >= 200}
+                        >
+                          <ZoomIn className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={() => setPreviewZoom(100)}
+                          className="p-1.5 rounded-lg hover:bg-white/10 transition-colors text-xs"
+                          title="Reset zoom"
+                        >
+                          Reset
+                        </button>
+                      </div>
+                      
+                      {/* Dark Mode Toggle */}
+                      <button
+                        onClick={() => setPreviewDarkMode(!previewDarkMode)}
+                        className="p-1.5 rounded-lg hover:bg-white/10 transition-colors"
+                        title={previewDarkMode ? "Switch to light mode" : "Switch to dark mode"}
+                      >
+                        {previewDarkMode ? <Sun className="w-3.5 h-3.5" /> : <Moon className="w-3.5 h-3.5" />}
+                      </button>
+                    </>
                   )}
                   {!showTerminal && output && (
                     <button
@@ -1994,11 +2216,17 @@ export function Canvas({
                       willChange: isResizingEditor ? 'transform' : 'auto'
                     }}
                   >
-                    <div 
-                      className={cn("prose prose-sm max-w-none p-6", previewDarkMode && "prose-invert")}
-                      style={{ color: previewDarkMode ? 'var(--color-foreground)' : '#1a1a1a' }}
-                      dangerouslySetInnerHTML={{ __html: output.replace('MARKDOWN_PREVIEW:', '') }}
-                    />
+                    <div style={{ 
+                      transform: `scale(${previewZoom / 100})`,
+                      transformOrigin: 'top left',
+                      width: `calc(100% / ${previewZoom / 100})`,
+                      minHeight: `calc(100% / ${previewZoom / 100})`
+                    }}>
+                      <SafeMarkdownPreview
+                        html={output.replace('MARKDOWN_PREVIEW:', '')}
+                        darkMode={previewDarkMode}
+                      />
+                    </div>
                     
                     {/* Overlay during resize */}
                     {isResizingEditor && (
@@ -2014,11 +2242,18 @@ export function Canvas({
                 ) : output === 'PREVIEW_MODE' ? (
                   // Preview mode for HTML/CSS - full width with resize optimization
                   <div 
-                    className="w-full h-full relative" 
+                    className="w-full h-full overflow-auto relative" 
                     style={{ 
                       backgroundColor: previewDarkMode ? 'var(--color-background)' : '#ffffff'
                     }}
                   >
+                    <div style={{ 
+                      transform: `scale(${previewZoom / 100})`,
+                      transformOrigin: 'top left',
+                      width: `calc(100% / ${previewZoom / 100})`,
+                      height: `calc(100% / ${previewZoom / 100})`,
+                      minHeight: '100%'
+                    }}>
                     {(detectedLanguage === 'html' || detectedLanguage === 'markup' || 
                       (files.length > 0 && files.some(f => f.language === 'html'))) ? (
                       <iframe
@@ -2214,6 +2449,7 @@ export function Canvas({
                         }}
                       />
                     )}
+                    </div>
                   </div>
                 ) : output ? (
                   <div 
