@@ -6,15 +6,56 @@ Das Canvas Package Management System ermöglicht die einfache Installation, Verw
 
 ## 🎯 Unterstützte Sprachen
 
-| Sprache | Package Manager | Status |
-|---------|----------------|--------|
-| 🐍 Python | pip | ✅ Vollständig unterstützt |
-| 📜 JavaScript | npm | ✅ Vollständig unterstützt |
-| 📘 TypeScript | npm | ✅ Vollständig unterstützt |
-| 💎 Ruby | gem | ✅ Vollständig unterstützt |
-| 🦀 Rust | cargo | ✅ Vollständig unterstützt |
-| 🐹 Go | go modules | ✅ Vollständig unterstützt |
-| 🐘 PHP | composer | ✅ Vollständig unterstützt |
+| Sprache | Package Manager | Code Execution | Sandboxing | Status |
+|---------|----------------|----------------|------------|--------|
+| 🐍 Python | pip | ✅ Direkt + Auto-Install | ✅ venv | ✅ Vollständig |
+| 📜 JavaScript | npm | ✅ Direkt (eval) | ✅ node_modules | ✅ Vollständig |
+| 📘 TypeScript | npm | ✅ Direkt (eval) | ✅ node_modules | ✅ Vollständig |
+| 💎 Ruby | gem | ✅ Direkt (ruby) | ⚠️ System | ✅ Vollständig |
+| 🦀 Rust | cargo | ✅ Compile + Run (rustc) | ⚠️ System | ✅ Vollständig |
+| 🐹 Go | go modules | ✅ Compile + Run (go run) | ⚠️ System | ✅ Vollständig |
+| 🐘 PHP | composer | ✅ Direkt (php) | ⚠️ System | ✅ Vollständig |
+| ☕ Java | maven | ✅ Compile + Run (javac) | ⚠️ System | ✅ Vollständig |
+| 🔧 C/C++ | vcpkg | ✅ Compile + Run (gcc/g++) | ⚠️ System | ✅ Vollständig |
+| 💜 C# | nuget | ⚠️ Geplant | ⚠️ System | 🔄 Package Manager |
+| 🍎 Swift | swift-pm | ⚠️ Geplant | ⚠️ System | 🔄 Package Manager |
+| � KSotlin | maven | ⚠️ Geplant | ⚠️ System | 🔄 Package Manager |
+| 🌐 HTML/CSS | - | ✅ Live Preview | ✅ Sandbox | ✅ Vollständig |
+| 📝 Markdown | - | ✅ Live Preview | ✅ Sandbox | ✅ Vollständig |
+| 📋 JSON | - | ✅ Validation | ✅ Sandbox | ✅ Vollständig |
+
+## �  Package Manager Details
+
+### Unterstützte Package Manager
+
+| Sprache | Tool | Install Command | Uninstall Command | Sandboxing |
+|---------|------|----------------|-------------------|------------|
+| Python | pip | `pip install <pkg>` | `pip uninstall -y <pkg>` | ✅ venv isoliert |
+| JavaScript | npm | `npm install <pkg>` | `npm uninstall <pkg>` | ✅ node_modules isoliert |
+| TypeScript | npm | `npm install <pkg>` | `npm uninstall <pkg>` | ✅ node_modules isoliert |
+| Ruby | gem | `gem install <pkg>` | `gem uninstall -x <pkg>` | ⚠️ System-weit |
+| Rust | cargo | `cargo add <pkg>` | `cargo remove <pkg>` | ⚠️ System-weit |
+| Go | go | `go get <pkg>` | `go mod edit -droprequire <pkg>` | ⚠️ System-weit |
+| PHP | composer | `composer require <pkg>` | `composer remove <pkg>` | ⚠️ System-weit |
+| Java | maven | `mvn dependency:get -Dartifact=<pkg>` | `mvn dependency:purge -DmanualInclude=<pkg>` | ⚠️ System-weit |
+| C/C++ | vcpkg | `vcpkg install <pkg>` | `vcpkg remove <pkg>` | ⚠️ System-weit |
+| C# | nuget | `dotnet add package <pkg>` | `dotnet remove package <pkg>` | ⚠️ System-weit |
+| Swift | swift-pm | `swift package resolve` | Manual (Package.swift) | ⚠️ System-weit |
+| Kotlin | maven | `mvn dependency:get -Dartifact=<pkg>` | `mvn dependency:purge -DmanualInclude=<pkg>` | ⚠️ System-weit |
+
+### Sandboxing-Erklärung
+
+**✅ Isoliert (Empfohlen)**
+- Packages werden in session-spezifischen Ordnern installiert
+- Keine Konflikte mit System-Packages
+- Einfache Bereinigung mit "Clean Environment"
+- Beispiel: `.canvas_env_${sessionId}/`
+
+**⚠️ System-weit**
+- Packages werden global installiert
+- Können mit System-Packages kollidieren
+- Manuelle Deinstallation erforderlich
+- Empfehlung: Verwende virtuelle Umgebungen manuell
 
 ## 🚀 Schnellstart
 
@@ -171,7 +212,69 @@ axios.get('https://api.example.com/data')
 // 5. Code erneut ausführen → Erfolg!
 ```
 
-### Workflow 3: Projekt abschließen
+### Workflow 3: Ruby Script
+```ruby
+# 1. Code schreiben
+require 'json'
+
+data = { name: "OpenChat", version: "2.0" }
+puts JSON.pretty_generate(data)
+
+# 2. Ausführen → Erfolg! (JSON ist built-in)
+# 3. Für externe Gems: Package Manager nutzen
+```
+
+### Workflow 4: Rust Program
+```rust
+// 1. Code schreiben
+fn main() {
+    println!("Hello from Rust!");
+    let numbers = vec![1, 2, 3, 4, 5];
+    let sum: i32 = numbers.iter().sum();
+    println!("Sum: {}", sum);
+}
+
+// 2. Ausführen → Kompilierung + Ausführung
+// 3. Output: Hello from Rust! Sum: 15
+```
+
+### Workflow 5: Go Program
+```go
+// 1. Code schreiben
+package main
+
+import "fmt"
+
+func main() {
+    fmt.Println("Hello from Go!")
+    numbers := []int{1, 2, 3, 4, 5}
+    sum := 0
+    for _, n := range numbers {
+        sum += n
+    }
+    fmt.Printf("Sum: %d\n", sum)
+}
+
+// 2. Ausführen → Kompilierung + Ausführung
+// 3. Output: Hello from Go! Sum: 15
+```
+
+### Workflow 6: PHP Script
+```php
+<?php
+// 1. Code schreiben
+$data = [
+    'name' => 'OpenChat',
+    'version' => '2.0'
+];
+
+echo json_encode($data, JSON_PRETTY_PRINT);
+
+// 2. Ausführen → Erfolg!
+// 3. Output: Formatiertes JSON
+```
+
+### Workflow 7: Projekt abschließen
 ```
 1. Projekt fertig
 2. Package Manager öffnen

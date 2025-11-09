@@ -112,3 +112,7 @@ This README demonstrates various markdown features including:
 - And more!
 
 Happy coding! 🚀
+
+
+
+Erstelle ein PHP-Script im Canvas, das folgendes macht: 1. Eine Klasse "Calculator" mit Methoden für Addition, Subtraktion, Multiplikation und Division 2. Eine Klasse "Person" mit Name und Alter 3. Teste beide Klassen mit verschiedenen Werten 4. Gib die Ergebnisse formatiert aus 5. Erstelle ein JSON-Array mit den Testergebnissen und gib es schön formatiert aus Das Script soll zeigen: - OOP in PHP - JSON-Handling - String-Formatierung - Fehlerbehandlung (Division durch 0)

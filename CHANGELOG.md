@@ -8,6 +8,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Multi-Language Code Execution** - Comprehensive execution support for 12+ languages
+  - **Interpreted Languages**: Python (with auto package install), JavaScript, TypeScript, Ruby, PHP
+  - **Compiled Languages**: Rust (rustc), Go (go run), Java (javac), C/C++ (gcc/g++)
+  - **Preview Languages**: HTML/CSS (live preview), Markdown (rendered), JSON (validation)
+  - Automatic compilation for compiled languages with error handling
+  - Real-time output display with stdout/stderr separation
+  - Temporary file management with automatic cleanup
+  - Language-specific error messages and installation guides
+  
 - **Enhanced Package Management** - Comprehensive package control in Canvas mode
   - Individual package uninstallation with language-specific package managers
   - Two-action system: full uninstall (trash icon) or list removal (X icon)
