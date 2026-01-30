@@ -391,7 +391,6 @@ def fibonacci(n):
 ↓ Updates in real-time as AI writes!
 ```
 ↓ Final code is saved to Canvas session
-```
 
 **Independent Session Management:**
 - Canvas sessions are stored separately from main chat sessions
