@@ -4,25 +4,7 @@ import { loadLocal, saveLocal } from '../lib/utils'
 export type Theme = 'light' | 'dark' | 'system'
 
 async function getSystemThemeFromTauri(): Promise<'light' | 'dark'> {
-  try {
-    // Try to get theme from Tauri window
-    if (typeof window !== 'undefined' && '__TAURI__' in window) {
-      const { getCurrentWindow } = await import('@tauri-apps/api/window')
-      const currentWindow = getCurrentWindow()
-      const windowTheme = await currentWindow.theme()
-      
-      console.log('[Theme] Tauri window theme:', windowTheme)
-      
-      if (windowTheme === 'light') {
-        return 'light'
-      } else if (windowTheme === 'dark') {
-        return 'dark'
-      }
-    }
-  } catch (error) {
-    console.warn('[Theme] Failed to get Tauri window theme:', error)
-  }
-  
+
   // Fallback to CSS media query
   if (typeof window !== 'undefined' && window.matchMedia) {
     const darkQuery = window.matchMedia('(prefers-color-scheme: dark)')
@@ -70,21 +52,7 @@ export function useTheme() {
       let unlisten: (() => void) | undefined
       
       const setupListener = async () => {
-        try {
-          if (typeof window !== 'undefined' && '__TAURI__' in window) {
-            const { getCurrentWindow } = await import('@tauri-apps/api/window')
-            const currentWindow = getCurrentWindow()
-            
-            unlisten = await currentWindow.onThemeChanged(({ payload: newTheme }) => {
-              console.log('[Theme] Tauri theme changed to:', newTheme)
-              const detectedTheme = newTheme === 'light' ? 'light' : 'dark'
-              setSystemTheme(detectedTheme)
-              document.documentElement.setAttribute('data-theme', detectedTheme)
-            })
-          }
-        } catch (error) {
-          console.warn('[Theme] Failed to setup theme listener:', error)
-        }
+        // Tauri removed, leaving empty for now
       }
       
       setupListener()

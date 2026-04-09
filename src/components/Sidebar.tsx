@@ -18,7 +18,6 @@ interface SidebarProps {
   onOpenSettings: () => void
   onToggleSidebar: () => void
   onOpenUpdate: () => void
-  onOpenBrowser: () => void
 }
 
 export function Sidebar({
@@ -32,7 +31,6 @@ export function Sidebar({
   onOpenSettings,
   onToggleSidebar,
   onOpenUpdate,
-  onOpenBrowser,
 }: SidebarProps) {
   const [openMenuId, setOpenMenuId] = useState<string | null>(null)
   const [editingSessionId, setEditingSessionId] = useState<string | null>(null)
@@ -122,17 +120,6 @@ export function Sidebar({
             </svg>
           </button>
 
-          {/* Canvas Button */}
-          <button
-            onClick={onOpenBrowser}
-            className="p-2 rounded-lg hover:bg-white/10 transition-colors"
-            title="Open Canvas"
-            aria-label="Open Canvas"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" height="20px" viewBox="0 -960 960 960" width="20px" fill="currentColor">
-              <path d="M320-240 80-480l240-240 57 57-184 184 183 183-56 56Zm320 0-57-57 184-184-183-183 56-56 240 240-240 240Z"/>
-            </svg>
-          </button>
 
           {/* Update Available Button */}
           {updateInfo?.available && (

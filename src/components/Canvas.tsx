@@ -189,7 +189,7 @@ export function Canvas({
       if (!currentSession?.id) return
       
       try {
-        const { invoke } = await import('@tauri-apps/api/core')
+        const { invoke } = await import("../lib/api")
         
         // Create isolated environment directory for this session
         const sessionEnvDir = `.canvas_env_${currentSession.id}`
@@ -230,7 +230,7 @@ export function Canvas({
         if (!currentSession?.id) return
         
         try {
-          const { invoke } = await import('@tauri-apps/api/core')
+          const { invoke } = await import("../lib/api")
           const sessionEnvDir = `.canvas_env_${currentSession.id}`
           
           // Remove virtual environment directory
@@ -1019,7 +1019,7 @@ export function Canvas({
       // Python - execute via backend with auto package installation
       else if (detectedLanguage === 'python') {
         try {
-          const { invoke } = await import('@tauri-apps/api/core')
+          const { invoke } = await import("../lib/api")
           
           // Extract required packages from imports
           const extractPythonPackages = (code: string): string[] => {
@@ -1184,7 +1184,7 @@ export function Canvas({
         }
         
         try {
-          const { invoke } = await import('@tauri-apps/api/core')
+          const { invoke } = await import("../lib/api")
           
           // Create temp file path
           const tempFile = `temp_script_${Date.now()}.rb`
@@ -1234,7 +1234,7 @@ export function Canvas({
       // Rust - compile and execute via backend
       else if (detectedLanguage === 'rust') {
         try {
-          const { invoke } = await import('@tauri-apps/api/core')
+          const { invoke } = await import("../lib/api")
           
           // Create temp file path
           const tempFile = `temp_script_${Date.now()}.rs`
@@ -1306,7 +1306,7 @@ export function Canvas({
       // Go - compile and execute via backend
       else if (detectedLanguage === 'go') {
         try {
-          const { invoke } = await import('@tauri-apps/api/core')
+          const { invoke } = await import("../lib/api")
           
           // Create temp file path
           const tempFile = `temp_script_${Date.now()}.go`
@@ -1365,7 +1365,7 @@ export function Canvas({
         }
         
         try {
-          const { invoke } = await import('@tauri-apps/api/core')
+          const { invoke } = await import("../lib/api")
           
           // Create temp file path
           const tempFile = `temp_script_${Date.now()}.php`
@@ -1415,7 +1415,7 @@ export function Canvas({
       // Java - compile and execute via backend
       else if (detectedLanguage === 'java') {
         try {
-          const { invoke } = await import('@tauri-apps/api/core')
+          const { invoke } = await import("../lib/api")
           
           // Extract class name from code
           const classNameMatch = code.match(/public\s+class\s+(\w+)/)
@@ -1490,7 +1490,7 @@ export function Canvas({
       // C/C++ - compile and execute via backend
       else if (detectedLanguage === 'cpp' || detectedLanguage === 'c') {
         try {
-          const { invoke } = await import('@tauri-apps/api/core')
+          const { invoke } = await import("../lib/api")
           
           // Create temp file path
           const extension = detectedLanguage === 'cpp' ? 'cpp' : 'c'
@@ -1579,7 +1579,7 @@ export function Canvas({
     const pkg = packageToInstall.trim()
     
     try {
-      const { invoke } = await import('@tauri-apps/api/core')
+      const { invoke } = await import("../lib/api")
       
       // Ensure virtual environment exists
       if (!venvPath && detectedLanguage === 'python') {
@@ -1687,7 +1687,7 @@ export function Canvas({
     if (!packageName.trim()) return
     
     try {
-      const { invoke } = await import('@tauri-apps/api/core')
+      const { invoke } = await import("../lib/api")
       
       // Determine uninstall command based on language
       let uninstallCommand = ''
@@ -1763,7 +1763,7 @@ export function Canvas({
     if (!currentSession?.id) return
     
     try {
-      const { invoke } = await import('@tauri-apps/api/core')
+      const { invoke } = await import("../lib/api")
       const sessionEnvDir = `.canvas_env_${currentSession.id}`
       
       setOutput('🧹 Cleaning up isolated environment...\n')

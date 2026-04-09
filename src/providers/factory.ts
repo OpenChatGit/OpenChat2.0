@@ -2,15 +2,15 @@
 import type { ProviderConfig, ProviderType } from '../types'
 import { BaseProvider } from './base'
 import { OllamaProvider } from './ollama'
-import { LMStudioProvider } from './lmstudio'
+import { HuggingFaceProvider } from './huggingface'
 
 export class ProviderFactory {
   static createProvider(config: ProviderConfig): BaseProvider {
     switch (config.type) {
       case 'ollama':
         return new OllamaProvider(config)
-      case 'lmstudio':
-        return new LMStudioProvider(config)
+      case 'huggingface':
+        return new HuggingFaceProvider(config)
       default:
         throw new Error(`Unsupported provider type: ${config.type}`)
     }
@@ -24,10 +24,10 @@ export class ProviderFactory {
         baseUrl: 'http://localhost:11434',
         enabled: true,
       },
-      lmstudio: {
-        type: 'lmstudio',
-        name: 'LM Studio',
-        baseUrl: 'http://localhost:1234',
+      huggingface: {
+        type: 'huggingface',
+        name: 'Hugging Face',
+        baseUrl: 'https://api-inference.huggingface.co',
         enabled: true,
       },
     }

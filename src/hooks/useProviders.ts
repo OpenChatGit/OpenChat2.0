@@ -15,7 +15,7 @@ export function useProviders() {
   useEffect(() => {
     const defaultProviders: ProviderConfig[] = [
       ProviderFactory.getDefaultConfig('ollama'),
-      ProviderFactory.getDefaultConfig('lmstudio'),
+      ProviderFactory.getDefaultConfig('huggingface'),
     ]
 
     // Load from localStorage if available

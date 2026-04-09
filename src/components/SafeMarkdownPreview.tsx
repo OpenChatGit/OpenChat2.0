@@ -5,7 +5,7 @@
  */
 
 import { useEffect, useRef } from 'react'
-import { openUrl } from '@tauri-apps/plugin-opener'
+import { openUrl } from "../lib/api"
 import { cn } from '../lib/utils'
 
 interface SafeMarkdownPreviewProps {

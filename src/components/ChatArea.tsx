@@ -10,6 +10,7 @@ interface ChatAreaProps {
   onSendMessage: (content: string, images?: ImageAttachment[]) => void
   onSendMessageWithNewChat: (content: string, images?: ImageAttachment[]) => void
   onRegenerateMessage?: (messageId: string) => void
+  onStop?: () => void
   providers: ProviderConfig[]
   selectedProvider: ProviderConfig | null
   selectedModel: string
@@ -29,6 +30,7 @@ export function ChatArea({
   onSendMessage, 
   onSendMessageWithNewChat,
   onRegenerateMessage,
+  onStop,
   providers,
   selectedProvider,
   selectedModel,
@@ -63,8 +65,9 @@ export function ChatArea({
         <div className="w-full max-w-3xl px-4">
           <ChatInput
             onSend={onSendMessageWithNewChat}
-            disabled={false}
-            isGenerating={false}
+            onStop={onStop}
+            disabled={isGenerating}
+            isGenerating={isGenerating}
             centered={true}
             providers={providers}
             selectedProvider={selectedProvider}
@@ -121,6 +124,7 @@ export function ChatArea({
       {/* Input */}
         <ChatInput
         onSend={onSendMessage}
+        onStop={onStop}
         disabled={isGenerating}
         isGenerating={isGenerating}
         providers={providers}

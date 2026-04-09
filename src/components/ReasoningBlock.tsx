@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { faChevronDown, faChevronUp, faCheck } from '@fortawesome/free-solid-svg-icons'
 import contentCopyIcon from '../assets/content_copy.svg'
+import { MarkdownRenderer } from './MarkdownRenderer'
 
 interface ReasoningBlockProps {
   content: string
@@ -9,8 +10,25 @@ interface ReasoningBlockProps {
 }
 
 export function ReasoningBlock({ content, isComplete = false }: ReasoningBlockProps) {
-  const [isExpanded, setIsExpanded] = useState(false)
+  const [isExpanded, setIsExpanded] = useState(!isComplete)
   const [copied, setCopied] = useState(false)
+  const scrollRef = useRef<HTMLDivElement>(null)
+
+  // Auto-close when reasoning completes, auto-open when it starts
+  useEffect(() => {
+    if (isComplete) {
+      setIsExpanded(false)
+    } else {
+      setIsExpanded(true)
+    }
+  }, [isComplete])
+
+  // Auto-scroll to bottom of reasoning block
+  useEffect(() => {
+    if (scrollRef.current && isExpanded && !isComplete) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight
+    }
+  }, [content, isExpanded, isComplete])
 
   return (
     <div className="mb-2">
@@ -51,14 +69,16 @@ export function ReasoningBlock({ content, isComplete = false }: ReasoningBlockPr
       {/* Reasoning Content */}
       {isExpanded && (
         <div 
-          className="mt-2 text-sm whitespace-pre-wrap break-words rounded-lg p-3 overflow-y-auto"
+          ref={scrollRef}
+          className="mt-2 text-sm rounded-lg p-3 overflow-y-auto prose prose-invert prose-sm scroll-smooth"
           style={{ 
             backgroundColor: 'rgba(255, 255, 255, 0.03)',
             color: '#9CA3AF',
-            maxHeight: '300px'
+            maxHeight: '300px',
+            maxWidth: 'none'
           }}
         >
-          {content}
+          <MarkdownRenderer content={content} />
         </div>
       )}
     </div>

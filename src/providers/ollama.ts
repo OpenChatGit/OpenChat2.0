@@ -1,10 +1,23 @@
-// Ollama provider implementation
+// Ollama provider implementation (Now using OpenAI-compatible API)
 import { BaseProvider } from './base'
 import type { ChatCompletionRequest, ModelInfo } from '../types'
 import { createModelCapabilities } from '../lib/visionDetection'
-import { debugReasoningResponse, logReasoningDebug, isReasoningDebugEnabled } from '../lib/reasoningDebug'
 
 export class OllamaProvider extends BaseProvider {
+  private buildHeaders(includeJson = false): HeadersInit {
+    const headers: HeadersInit = {}
+
+    if (includeJson) {
+      headers['Content-Type'] = 'application/json'
+    }
+
+    if (this.config.apiKey) {
+      headers['Authorization'] = `Bearer ${this.config.apiKey}`
+    }
+
+    return headers
+  }
+
   async listModels(): Promise<ModelInfo[]> {
     try {
       const response = await this.fetchWithTimeout(
@@ -20,7 +33,9 @@ export class OllamaProvider extends BaseProvider {
       
       // Add vision capabilities to models that support it
       const models = (data.models || []).map((model: any) => ({
-        ...model,
+        name: model.name, // Use model.name from /api/tags instead of model.id from /v1
+        size: model.size,
+        details: model.details || model,
         capabilities: createModelCapabilities(model.name, 'ollama'),
       }))
       
@@ -41,40 +56,23 @@ export class OllamaProvider extends BaseProvider {
     signal?: AbortSignal
   ): Promise<string> {
     const url = `${this.config.baseUrl}/api/chat`
-    
-    // Convert messages to Ollama format with images
+
     const formattedMessages = request.messages
-      .filter(msg => msg.content && msg.content.trim().length > 0) // Filter out empty messages
+      .filter(msg => msg.content && msg.content.trim().length > 0)
       .map(msg => {
-        // Check if message has images (from extended Message type)
         const messageWithImages = msg as any
         if (messageWithImages.images && messageWithImages.images.length > 0) {
-          // Ollama expects images as an array of base64 strings
           const images = messageWithImages.images.map((img: any) => img.data)
-          
-          return {
-            role: msg.role,
-            content: msg.content,
-            images
-          }
+          return { role: msg.role, content: msg.content, images }
         }
-        
-        // Regular text-only message
-        return {
-          role: msg.role,
-          content: msg.content
-        }
+        return { role: msg.role, content: msg.content }
       })
-    
-    // Validate that we have at least one message
-    if (formattedMessages.length === 0) {
-      throw new Error('No valid messages to send to Ollama')
-    }
-    
+
     const body: any = {
       model: request.model,
       messages: formattedMessages,
       stream: !!onChunk,
+      think: true, // Officially enable thinking response in new Ollama versions
       options: {
         temperature: request.temperature,
         top_p: request.top_p,
@@ -82,14 +80,12 @@ export class OllamaProvider extends BaseProvider {
       },
     }
 
-    // Add tools if provided
     if (request.tools && request.tools.length > 0) {
       body.tools = request.tools
       console.log('[Ollama] Sending tools:', request.tools.length, 'tools')
     }
 
     if (!onChunk) {
-      // Non-streaming request
       const response = await this.fetchWithTimeout(
         url,
         {
@@ -102,46 +98,22 @@ export class OllamaProvider extends BaseProvider {
       )
 
       if (!response.ok) {
-        let errorDetails = response.statusText
-        try {
-          const errorData = await response.json()
-          errorDetails = errorData.error || errorData.message || errorDetails
-        } catch {
-          // If we can't parse the error, use statusText
-        }
-        console.error('[Ollama] Request failed:', {
-          status: response.status,
-          statusText: response.statusText,
-          error: errorDetails,
-          url,
-          model: request.model,
-          messageCount: request.messages.length
-        })
-        throw new Error(`Ollama request failed: ${errorDetails}`)
+        throw new Error(`Ollama request failed: ${response.statusText}`)
       }
 
       const data = await response.json()
       const msg = data.message || {}
       
-      // Check for tool calls
       if (msg.tool_calls && msg.tool_calls.length > 0) {
         console.log('[Ollama] Received tool calls:', msg.tool_calls)
-        // Format tool calls as JSON for parsing
         const toolCallsJson = JSON.stringify(msg.tool_calls, null, 2)
         return `Tool calls received:\n\`\`\`json\n${toolCallsJson}\n\`\`\``
       }
-      
-      const reasoning = (msg.reasoning_content || msg.reasoning || msg.thoughts || msg.thinking || data.reasoning_content || data.reasoning || data.thoughts || data.thinking || '').toString().trim()
-      const text = msg.content || data.response || ''
-      const result = reasoning ? `<think>${reasoning}</think>${text}` : text
-      
-      // Debug reasoning if enabled
-      if (isReasoningDebugEnabled()) {
-        const debugInfo = debugReasoningResponse(request.model, result, data)
-        logReasoningDebug(debugInfo)
-      }
-      
-      return result
+
+      // Read thinking, reasoning_content or reasoning
+      const reasoning = (msg.thinking || msg.reasoning_content || msg.reasoning || '').trim()
+      const text = msg.content || ''
+      return reasoning ? `<think>\n${reasoning}\n</think>\n${text}` : text
     }
 
     // Streaming request
@@ -157,22 +129,7 @@ export class OllamaProvider extends BaseProvider {
     )
 
     if (!response.ok) {
-      let errorDetails = response.statusText
-      try {
-        const errorData = await response.json()
-        errorDetails = errorData.error || errorData.message || errorDetails
-      } catch {
-        // If we can't parse the error, use statusText
-      }
-      console.error('[Ollama] Streaming request failed:', {
-        status: response.status,
-        statusText: response.statusText,
-        error: errorDetails,
-        url,
-        model: request.model,
-        messageCount: request.messages.length
-      })
-      throw new Error(`Ollama request failed: ${errorDetails}`)
+      throw new Error(`Ollama request failed: ${response.statusText}`)
     }
 
     const reader = response.body?.getReader()
@@ -196,43 +153,42 @@ export class OllamaProvider extends BaseProvider {
           try {
             const json = JSON.parse(line)
             const msg = json.message || {}
-            const r = (msg.reasoning_content || msg.reasoning || msg.thoughts || msg.thinking || json.reasoning_content || json.reasoning || json.thoughts || json.thinking) as string | undefined
-            const c = (msg.content || json.response) as string | undefined
+            
+            if (msg.tool_calls && msg.tool_calls.length > 0) {
+              const toolCallsJson = JSON.stringify(msg.tool_calls, null, 2)
+              const toolCallStr = `\n\`\`\`json\n${toolCallsJson}\n\`\`\`\n`
+              fullContent += toolCallStr
+              onChunk(toolCallStr)
+            }
+
+            // Read the official 'thinking' field introduced in latest Ollama
+            const r = (msg.thinking || msg.reasoning_content || msg.reasoning) as string | undefined
+            const c = msg.content as string | undefined
 
             if (r) {
               if (!reasoningOpen) {
                 reasoningOpen = true
-                fullContent += '<think>'
-                onChunk && onChunk('<think>')
+                fullContent += '<think>\n'
+                onChunk('<think>\n')
               }
               fullContent += r
-              onChunk && onChunk(r)
+              onChunk(r)
             }
 
             if (c) {
               if (reasoningOpen) {
                 reasoningOpen = false
-                fullContent += '</think>'
-                onChunk && onChunk('</think>')
+                fullContent += '\n</think>\n'
+                onChunk('\n</think>\n')
               }
               fullContent += c
-              onChunk && onChunk(c)
+              onChunk(c)
             }
 
-            if (json.done) {
-              if (reasoningOpen) {
-                reasoningOpen = false
-                fullContent += '</think>'
-                onChunk && onChunk('</think>')
-              }
-              
-              // Debug reasoning if enabled
-              if (isReasoningDebugEnabled()) {
-                const debugInfo = debugReasoningResponse(request.model, fullContent, json)
-                logReasoningDebug(debugInfo)
-              }
-              
-              return fullContent
+            if (json.done && reasoningOpen) {
+              reasoningOpen = false
+              fullContent += '\n</think>\n'
+              onChunk('\n</think>\n')
             }
           } catch (e) {
             console.warn('Failed to parse chunk:', line)
@@ -243,14 +199,21 @@ export class OllamaProvider extends BaseProvider {
       reader.releaseLock()
     }
 
+    if (reasoningOpen) {
+      fullContent += '\n</think>\n'
+      onChunk('\n</think>\n')
+    }
     return fullContent
   }
 
   async testConnection(timeout = 2000): Promise<boolean> {
     try {
       const response = await this.fetchWithTimeout(
-        `${this.config.baseUrl}/api/version`,
-        { method: 'GET' },
+        `${this.config.baseUrl}/v1/models`,
+        {
+          method: 'GET',
+          headers: this.buildHeaders(),
+        },
         timeout
       )
       return response.ok

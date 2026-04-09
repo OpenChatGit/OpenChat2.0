@@ -13,18 +13,8 @@ import "./index.css";
     // If theme is 'system', try to get from Tauri window
     if (theme === 'system') {
       try {
-        if (typeof window !== 'undefined' && '__TAURI__' in window) {
-          const { getCurrentWindow } = await import('@tauri-apps/api/window');
-          const currentWindow = getCurrentWindow();
-          const windowTheme = await currentWindow.theme();
-          
-          console.log('[Theme Init] Tauri window theme:', windowTheme);
-          theme = windowTheme === 'light' ? 'light' : 'dark';
-        } else {
-          // Fallback to CSS media query
-          const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
-          theme = prefersDark ? 'dark' : 'light';
-        }
+        const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+        theme = prefersDark ? 'dark' : 'light';
       } catch (error) {
         console.warn('[Theme Init] Failed to get Tauri theme, using media query:', error);
         const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;

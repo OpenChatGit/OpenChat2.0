@@ -12,7 +12,7 @@ import type {
   ProviderMetadata
 } from './types';
 import { ProviderError, ProviderErrorType } from './types';
-import { invoke } from '@tauri-apps/api/core';
+import { invoke } from "../../api";
 
 interface GoogleSearchResponse {
   items?: Array<{

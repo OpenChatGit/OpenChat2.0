@@ -1,6 +1,6 @@
 // Core types for the modular provider system
 
-export type ProviderType = 'ollama' | 'lmstudio';
+export type ProviderType = 'ollama' | 'huggingface';
 
 export interface ImageAttachment {
   id: string;

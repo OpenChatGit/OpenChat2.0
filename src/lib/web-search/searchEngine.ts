@@ -8,7 +8,7 @@
  * - Automatic retry with exponential backoff
  */
 
-import { invoke } from '@tauri-apps/api/core';
+import { invoke } from "../api";
 import { SearchResult, SearchErrorType, RateLimitStatus } from './types';
 
 // User-Agent rotation is now handled by the Rust backend

@@ -34,7 +34,7 @@ import { ProviderFactory } from '../providers/factory'
  * Health status information for a provider.
  * 
  * @interface ProviderHealthStatus
- * @property {string} type - Provider type identifier (e.g., 'ollama', 'lmstudio', 'anthropic')
+ * @property {string} type - Provider type identifier (e.g., 'ollama', 'huggingface', 'anthropic')
  * @property {boolean | undefined} status - Health status: true=healthy, false=unhealthy, undefined=unknown
  * @property {number} timestamp - Unix timestamp (milliseconds) of last health check
  * @property {boolean} checking - Whether a health check is currently in progress for this provider
@@ -164,7 +164,7 @@ export class ProviderHealthMonitor {
    * Returns cached status if available. Status may be stale if cache TTL has expired.
    * Use `isCacheValid()` to check if the status is still fresh.
    * 
-   * @param {string} providerType - Provider type identifier (e.g., 'ollama', 'lmstudio')
+   * @param {string} providerType - Provider type identifier (e.g., 'ollama', 'huggingface')
    * @returns {ProviderHealthStatus | undefined} Provider health status or undefined if not found
    * 
    * @example
@@ -492,8 +492,8 @@ export class ProviderHealthMonitor {
 
       const parsed = JSON.parse(cached)
 
-      // List of supported provider types (only Ollama and LM Studio)
-      const supportedProviders = new Set(['ollama', 'lmstudio'])
+      // List of supported provider types (only Ollama and Hugging Face)
+      const supportedProviders = new Set(['ollama', 'huggingface'])
 
       // Validate and load cache entries, filtering out unsupported providers
       for (const [key, value] of Object.entries(parsed)) {

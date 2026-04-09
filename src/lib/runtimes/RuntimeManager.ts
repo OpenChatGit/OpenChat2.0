@@ -124,7 +124,7 @@ export class RuntimeManager {
     if (!runtime) return false
 
     try {
-      const { invoke } = await import('@tauri-apps/api/core')
+      const { invoke } = await import("../api")
       
       // Try multiple possible paths (ZIP files often extract to subdirectories)
       const possiblePaths = [
@@ -232,13 +232,13 @@ export class RuntimeManager {
         console.log(`[RuntimeManager] Using default ${language} configuration`)
       }
 
-      const { invoke } = await import('@tauri-apps/api/core')
+      const { invoke } = await import("../api")
       
       runtime.isDownloading = true
       runtime.downloadProgress = 0
 
       // Get absolute paths first
-      const { invoke: invokeCore } = await import('@tauri-apps/api/core')
+      const { invoke: invokeCore } = await import("../api")
       const currentDirResult = await invokeCore<{ stdout: string; stderr: string; exit_code: number }>('run_terminal_command', {
         command: 'cd',
         workingDir: undefined
@@ -596,7 +596,7 @@ export class RuntimeManager {
     if (!runtime) return false
 
     try {
-      const { invoke } = await import('@tauri-apps/api/core')
+      const { invoke } = await import("../api")
       
       // Remove runtime directory
       await invoke('run_terminal_command', {
@@ -620,7 +620,7 @@ export class RuntimeManager {
     if (!runtime || !runtime.isInstalled) return null
 
     try {
-      const { invoke } = await import('@tauri-apps/api/core')
+      const { invoke } = await import("../api")
       
       // Try multiple possible paths
       const possiblePaths = [
@@ -655,7 +655,7 @@ export class RuntimeManager {
    */
   async checkSystemRuntime(language: string): Promise<boolean> {
     try {
-      const { invoke } = await import('@tauri-apps/api/core')
+      const { invoke } = await import("../api")
       
       const commands: Record<string, string> = {
         python: 'python --version',
@@ -696,7 +696,7 @@ export class RuntimeManager {
     }
 
     try {
-      const { invoke } = await import('@tauri-apps/api/core')
+      const { invoke } = await import("../api")
       const execPath = await this.getExecutablePath(language)
       
       if (!execPath) {
@@ -779,7 +779,7 @@ export class RuntimeManager {
     }
 
     try {
-      const { invoke } = await import('@tauri-apps/api/core')
+      const { invoke } = await import("../api")
       const execPath = await this.getExecutablePath(language)
       
       if (!execPath) {

@@ -395,6 +395,15 @@ body {
   background-color: rgba(0, 0, 0, 0.08) !important;
 }
 
+/* HF Logo dynamic inversion */
+.hf-logo {
+  filter: brightness(0) invert(1); /* White in dark mode */
+}
+
+[data-theme="light"] .hf-logo {
+  filter: brightness(0); /* Black in light mode */
+}
+
 /* Custom Range Slider Styles for better visibility */
 input[type="range"].slider-thumb {
   -webkit-appearance: none;

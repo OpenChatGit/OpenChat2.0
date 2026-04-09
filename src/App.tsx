@@ -3,12 +3,10 @@ import { Sidebar } from './components/Sidebar'
 import { ChatArea } from './components/ChatArea'
 import { SettingsModal } from './components/SettingsModal'
 import { UpdateModal } from './components/UpdateModal'
-import { Canvas } from './components/Canvas'
 
 import { useChatWithTools } from './hooks/useChatWithTools'
 import { useProviders } from './hooks/useProviders'
 import { useUpdateChecker } from './hooks/useUpdateChecker'
-import { useCanvasManager } from './hooks/useCanvasManager'
 import { ProviderHealthMonitor } from './services/ProviderHealthMonitor'
 import type { ImageAttachment } from './types'
 
@@ -20,7 +18,7 @@ function App() {
   // Clean up old unsupported providers from localStorage on app start
   useEffect(() => {
     const cleanupOldProviders = () => {
-      const supportedProviders = new Set(['ollama', 'lmstudio'])
+      const supportedProviders = new Set(['ollama', 'huggingface'])
       
       // Clean up provider health cache
       try {
@@ -84,34 +82,15 @@ function App() {
     setAutoSearchEnabled,
     webSearchSettings,
     updateWebSearchSettings,
-    canvasToolsEnabled,
-    setCanvasToolsEnabled,
+
     createSession,
     sendMessage,
     regenerateMessage,
     deleteSession,
     updateSessionTitle,
     getSourceRegistry,
+    cancelGeneration,
   } = useChatWithTools()
-
-  // Canvas Manager Hook - completely independent from main chat
-  // Uses useCanvasChat internally for its own message handling
-  const {
-    isCanvasMode,
-    setIsCanvasMode,
-    canvasSessions,
-    currentCanvasSession,
-    isCanvasGenerating,
-    handleNewCanvasSession,
-    handleSelectCanvasSession,
-    handleCanvasSendMessage,
-    handleCanvasRegenerateMessage,
-    handleDeleteCanvasSession,
-    handleRenameCanvasSession,
-    handleSaveCanvasState,
-  } = useCanvasManager({
-    setCanvasToolsEnabled,
-  })
 
   const {
     providers,
@@ -195,33 +174,30 @@ function App() {
 
   return (
     <div className="flex h-screen overflow-hidden text-foreground relative" style={{ backgroundColor: 'var(--color-main)' }}>
-      {/* Left Sidebar - Hidden in Canvas Mode */}
-      {!isCanvasMode && (
-        <div 
-          className="flex-shrink-0 transition-all duration-300 ease-in-out"
-          style={{ 
-            width: isSidebarOpen ? '256px' : '0px',
-            overflow: 'hidden'
-          }}
-        >
-          <Sidebar
-            sessions={sessions.filter((s: any) => !s.isCanvas)}
-            currentSession={(currentSession as any)?.isCanvas ? null : currentSession}
-            updateInfo={updateInfo}
-            onNewChat={handleNewChat}
-            onSelectSession={setCurrentSession}
-            onDeleteSession={deleteSession}
-            onRenameSession={updateSessionTitle}
-            onOpenSettings={() => setShowSettings(true)}
-            onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
-            onOpenUpdate={() => setShowUpdateModal(true)}
-            onOpenBrowser={() => setIsCanvasMode(!isCanvasMode)}
-          />
-        </div>
-      )}
+      {/* Left Sidebar */}
+      <div 
+        className="flex-shrink-0 transition-all duration-300 ease-in-out"
+        style={{ 
+          width: isSidebarOpen ? '256px' : '0px',
+          overflow: 'hidden'
+        }}
+      >
+        <Sidebar
+          sessions={sessions.filter((s: any) => !s.isCanvas)}
+          currentSession={(currentSession as any)?.isCanvas ? null : currentSession}
+          updateInfo={updateInfo}
+          onNewChat={handleNewChat}
+          onSelectSession={setCurrentSession}
+          onDeleteSession={deleteSession}
+          onRenameSession={updateSessionTitle}
+          onOpenSettings={() => setShowSettings(true)}
+          onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
+          onOpenUpdate={() => setShowUpdateModal(true)}
+        />
+      </div>
 
-      {/* Floating Toggle Button (when sidebar is closed and not in Canvas mode) */}
-      {!isSidebarOpen && !isCanvasMode && (
+      {/* Floating Toggle Button (when sidebar is closed) */}
+      {!isSidebarOpen && (
         <button
           onClick={() => setIsSidebarOpen(true)}
           className="absolute top-3 left-3 z-50 p-2 rounded-lg hover:bg-white/10 transition-colors"
@@ -234,57 +210,31 @@ function App() {
         </button>
       )}
 
-      {/* Main Content Area - Chat or Canvas */}
+      {/* Main Content Area - Chat */}
       <div className="flex-1 flex flex-col min-w-0" style={{ backgroundColor: 'var(--color-main)' }}>
-        {isCanvasMode ? (
-          <Canvas
-            language="javascript"
-            onSendMessage={(content, images) => handleCanvasSendMessage(content, selectedProvider, selectedModel, setShowSettings, images)}
-            isGenerating={isCanvasGenerating}
-            onExit={() => setIsCanvasMode(false)}
-            providers={providers}
-            selectedProvider={selectedProvider}
-            selectedModel={selectedModel}
-            models={models}
-            onSelectProvider={setSelectedProvider}
-            onSelectModel={setSelectedModel}
-            onLoadModels={loadModels}
-            isLoadingModels={isLoadingModels}
-            canvasToolsEnabled={canvasToolsEnabled}
-            currentSession={currentCanvasSession || (canvasSessions.length > 0 ? canvasSessions[0] : null)}
-            onRegenerateMessage={(messageId) => handleCanvasRegenerateMessage(messageId, selectedProvider, selectedModel)}
-            getSourceRegistry={getSourceRegistry}
-            canvasSessions={canvasSessions}
-            onSelectCanvasSession={handleSelectCanvasSession}
-            onCreateCanvasSession={() => handleNewCanvasSession(selectedProvider, selectedModel, setShowSettings)}
-            onDeleteCanvasSession={handleDeleteCanvasSession}
-            onRenameCanvasSession={handleRenameCanvasSession}
-            onSaveCanvasState={handleSaveCanvasState}
-          />
-        ) : (
-          <ChatArea
-            session={currentSession}
-            isGenerating={isGenerating}
-            onSendMessage={handleSendMessage}
-            onSendMessageWithNewChat={handleSendMessageWithNewChat}
-            onRegenerateMessage={(messageId) => {
-              if (selectedProvider && selectedModel) {
-                regenerateMessage(messageId, selectedProvider, selectedModel)
-              }
-            }}
-            providers={providers}
-            selectedProvider={selectedProvider}
-            selectedModel={selectedModel}
-            models={models}
-            onSelectProvider={setSelectedProvider}
-            onSelectModel={setSelectedModel}
-            onLoadModels={loadModels}
-            isLoadingModels={isLoadingModels}
-            autoSearchEnabled={autoSearchEnabled}
-            onToggleAutoSearch={() => setAutoSearchEnabled(!autoSearchEnabled)}
-            getSourceRegistry={getSourceRegistry}
-          />
-        )}
+        <ChatArea
+          session={currentSession}
+          isGenerating={isGenerating}
+          onSendMessage={handleSendMessage}
+          onSendMessageWithNewChat={handleSendMessageWithNewChat}
+          onStop={cancelGeneration}
+          onRegenerateMessage={(messageId) => {
+            if (selectedProvider && selectedModel) {
+              regenerateMessage(messageId, selectedProvider, selectedModel)
+            }
+          }}
+          providers={providers}
+          selectedProvider={selectedProvider}
+          selectedModel={selectedModel}
+          models={models}
+          onSelectProvider={setSelectedProvider}
+          onSelectModel={setSelectedModel}
+          onLoadModels={loadModels}
+          isLoadingModels={isLoadingModels}
+          autoSearchEnabled={autoSearchEnabled}
+          onToggleAutoSearch={() => setAutoSearchEnabled(!autoSearchEnabled)}
+          getSourceRegistry={getSourceRegistry}
+        />
       </div>
 
       {/* Settings Modal */}

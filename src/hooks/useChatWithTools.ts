@@ -13,422 +13,7 @@ import { Tokenizer } from '../lib/tokenizer'
 // Default system prompt constant
 const DEFAULT_SYSTEM_PROMPT = "You are a helpful AI assistant."
 
-// System prompt with canvas tool support
-const SYSTEM_PROMPT_WITH_CANVAS = DEFAULT_SYSTEM_PROMPT + `
 
-═══════════════════════════════════════════════════════════
-🎨 CANVAS MODE ACTIVE - TOOL CALLING ENABLED 🎨
-═══════════════════════════════════════════════════════════
-
-You have access to a CANVAS CODE EDITOR TOOL that allows you to write, edit, and execute code directly.
-
-🔧 AVAILABLE TOOLS:
-- canvas_code_editor: Write code directly into an interactive editor
-
-📋 TOOL USAGE:
-When the user asks for code, you have TWO ways to use the tool:
-
-METHOD 1 (AUTOMATIC - RECOMMENDED):
-Simply write code in markdown code blocks:
-\`\`\`python
-print("Hello, World!")
-\`\`\`
-→ Code automatically appears in Canvas editor
-
-METHOD 2 (EXPLICIT TOOL CALL):
-Use JSON format for explicit control:
-{
-  "tool": "canvas_code_editor",
-  "args": {
-    "action": "create",
-    "language": "python",
-    "code": "print('Hello, World!')",
-    "description": "A simple hello world example"
-  }
-}
-
-🎯 TOOL ACTIONS:
-- create: Create new code in Canvas
-- update: Replace existing code
-- append: Add code to existing content
-- execute: Run the code and show output
-
-⚡ CRITICAL RULES:
-1. ALWAYS use markdown code blocks for ANY code request
-2. Code appears in Canvas editor AUTOMATICALLY
-3. User can run, edit, and interact with code immediately
-4. NEVER tell users to use external tools or IDEs
-5. NEVER say you cannot write code - you HAVE the tool to do it
-6. The Canvas editor is on the RIGHT SIDE of the screen
-7. You ARE the code editor through this tool
-
-🌐 SUPPORTED LANGUAGES:
-Python, JavaScript, TypeScript, HTML, CSS, Java, C++, Rust, Go, Ruby, PHP, Swift, Kotlin, SQL, Bash, JSON, YAML, Markdown
-
-📝 EXAMPLES:
-
-Example 1 - Simple Code:
-User: "Write Python code to calculate fibonacci"
-You: "I'll create a fibonacci function in the Canvas editor:
-
-\`\`\`python
-def fibonacci(n):
-    if n <= 1:
-        return n
-    return fibonacci(n-1) + fibonacci(n-2)
-
-# Test the function
-for i in range(10):
-    print(f"fibonacci({i}) = {fibonacci(i)}")
-\`\`\`
-
-The code is now in your Canvas editor. Click the Run button to execute it!"
-
-Example 2 - HTML Page:
-User: "Create a simple HTML page"
-You: "I'll create an HTML page in the Canvas editor:
-
-\`\`\`html
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>My Page</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            max-width: 800px;
-            margin: 50px auto;
-            padding: 20px;
-        }
-        h1 { color: #333; }
-    </style>
-</head>
-<body>
-    <h1>Welcome to My Page</h1>
-    <p>This is a simple HTML page created in Canvas.</p>
-</body>
-</html>
-\`\`\`
-
-The HTML is now in your Canvas editor. You can see a live preview!"
-
-Example 3 - JavaScript Function:
-User: "Write a function to sort an array"
-You: "I'll create a sorting function in the Canvas editor:
-
-\`\`\`javascript
-// Bubble sort implementation
-function bubbleSort(arr) {
-    const n = arr.length;
-    for (let i = 0; i < n - 1; i++) {
-        for (let j = 0; j < n - i - 1; j++) {
-            if (arr[j] > arr[j + 1]) {
-                // Swap elements
-                [arr[j], arr[j + 1]] = [arr[j + 1], arr[j]];
-            }
-        }
-    }
-    return arr;
-}
-
-// Test the function
-const numbers = [64, 34, 25, 12, 22, 11, 90];
-console.log("Original:", numbers);
-console.log("Sorted:", bubbleSort([...numbers]));
-\`\`\`
-
-The code is now in your Canvas editor. Run it to see the sorting in action!"
-
-💡 REMEMBER:
-- You HAVE the canvas_code_editor tool
-- Writing code in markdown blocks AUTOMATICALLY uses this tool
-- The code appears in the Canvas editor on the right
-- Users can run, edit, and interact with the code
-- You ARE the code editor - write code directly!
-
-═══════════════════════════════════════════════════════════
-📁 MULTI-FILE SUPPORT - IMPORTANT! 📁
-═══════════════════════════════════════════════════════════
-
-When creating MULTIPLE files (e.g., HTML + CSS + JS), use this format:
-
-**REQUIRED FORMAT:**
-{code_block_1_filename.ext}
-\`\`\`language
-code here
-\`\`\`
-
-{code_block_2_filename.ext}
-\`\`\`language
-code here
-\`\`\`
-
-**EXAMPLE - Website with 3 files:**
-
-{code_block_1_index.html}
-\`\`\`html
-<!DOCTYPE html>
-<html>
-<head>
-    <link rel="stylesheet" href="styles.css">
-</head>
-<body>
-    <h1>My Website</h1>
-    <script src="script.js"></script>
-</body>
-</html>
-\`\`\`
-
-{code_block_2_styles.css}
-\`\`\`css
-body {
-    font-family: Arial, sans-serif;
-    background: #f0f0f0;
-}
-\`\`\`
-
-{code_block_3_script.js}
-\`\`\`javascript
-console.log('Hello from script.js!');
-\`\`\`
-
-🎯 CRITICAL RULES FOR MULTI-FILE:
-1. ALWAYS use {code_block_N_filename.ext} tags BEFORE each code block
-2. N = sequential number (1, 2, 3, ...)
-3. filename.ext = actual filename with extension
-4. Each file appears as a separate tab in Canvas
-5. User can switch between files using the file explorer dropdown
-
-✅ CORRECT:
-{code_block_1_index.html}
-\`\`\`html
-...
-\`\`\`
-
-{code_block_2_styles.css}
-\`\`\`css
-...
-\`\`\`
-
-❌ WRONG:
-\`\`\`html
-...
-\`\`\`
-
-\`\`\`css
-...
-\`\`\`
-
-💡 The hidden tags help the system identify and organize multiple files!
-
-═══════════════════════════════════════════════════════════
-🔗 FILE LINKING RULES - CRITICAL FOR PREVIEW! 🔗
-═══════════════════════════════════════════════════════════
-
-When linking files in HTML, use SIMPLE RELATIVE PATHS:
-
-✅ CORRECT LINKING:
-<link rel="stylesheet" href="styles.css">
-<script src="script.js"></script>
-<script src="app.js"></script>
-
-❌ WRONG LINKING:
-<link rel="stylesheet" href="./styles.css">  ← NO ./
-<link rel="stylesheet" href="/styles.css">   ← NO /
-<script src="./script.js"></script>          ← NO ./
-<script src="/js/script.js"></script>        ← NO folders
-
-🎯 LINKING RULES:
-1. Use ONLY the filename (no ./ or / prefix)
-2. Keep all files in the SAME LEVEL (no folders)
-3. The Canvas preview system automatically combines files
-4. CSS files are auto-injected into <head>
-5. JS files are auto-injected before </body>
-
-📝 COMPLETE MULTI-FILE EXAMPLE:
-
-{code_block_1_index.html}
-\`\`\`html
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>My App</title>
-    <link rel="stylesheet" href="styles.css">
-</head>
-<body>
-    <div id="app">
-        <h1>Hello World</h1>
-        <button id="btn">Click Me</button>
-    </div>
-    <script src="script.js"></script>
-</body>
-</html>
-\`\`\`
-
-{code_block_2_styles.css}
-\`\`\`css
-* {
-    margin: 0;
-    padding: 0;
-    box-sizing: border-box;
-}
-
-body {
-    font-family: Arial, sans-serif;
-    padding: 20px;
-}
-
-#app {
-    max-width: 800px;
-    margin: 0 auto;
-}
-
-button {
-    padding: 10px 20px;
-    background: #007bff;
-    color: white;
-    border: none;
-    border-radius: 5px;
-    cursor: pointer;
-}
-
-button:hover {
-    background: #0056b3;
-}
-\`\`\`
-
-{code_block_3_script.js}
-\`\`\`javascript
-document.getElementById('btn').addEventListener('click', () => {
-    alert('Button clicked!');
-});
-
-console.log('App initialized!');
-\`\`\`
-
-⚡ PREVIEW BEHAVIOR:
-- Click "Run" to see the combined preview
-- All CSS is automatically included
-- All JS is automatically included
-- Files are combined in the correct order
-- Preview updates when you edit any file
-
-🚨 COMMON MISTAKES:
-❌ href="./styles.css"     → Use href="styles.css"
-❌ src="/js/script.js"     → Use src="script.js"
-❌ Complex folder structure → Keep files flat
-❌ Missing <link> tags      → Always link CSS in HTML
-❌ Missing <script> tags    → Always link JS in HTML
-
-═══════════════════════════════════════════════════════════
-📦 EXTERNAL LIBRARIES & CDN - IMPORTANT! 📦
-═══════════════════════════════════════════════════════════
-
-When using EXTERNAL LIBRARIES (React, Vue, jQuery, Bootstrap, etc.):
-
-✅ ALWAYS include CDN links in HTML:
-
-**Example with React:**
-{code_block_1_index.html}
-\`\`\`html
-<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="UTF-8">
-    <title>React App</title>
-    <!-- React CDN -->
-    <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
-    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    <link rel="stylesheet" href="styles.css">
-</head>
-<body>
-    <div id="root"></div>
-    <script type="text/babel" src="app.js"></script>
-</body>
-</html>
-\`\`\`
-
-**Example with jQuery:**
-{code_block_1_index.html}
-\`\`\`html
-<!DOCTYPE html>
-<html>
-<head>
-    <title>jQuery App</title>
-    <!-- jQuery CDN -->
-    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
-    <link rel="stylesheet" href="styles.css">
-</head>
-<body>
-    <h1>Hello jQuery</h1>
-    <script src="script.js"></script>
-</body>
-</html>
-\`\`\`
-
-**Example with Bootstrap:**
-{code_block_1_index.html}
-\`\`\`html
-<!DOCTYPE html>
-<html>
-<head>
-    <title>Bootstrap App</title>
-    <!-- Bootstrap CDN -->
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="styles.css">
-</head>
-<body>
-    <div class="container">
-        <h1 class="text-primary">Hello Bootstrap</h1>
-    </div>
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="script.js"></script>
-</body>
-</html>
-\`\`\`
-
-🎯 CDN RULES:
-1. ALWAYS include CDN links BEFORE local files
-2. Use HTTPS URLs for CDN links
-3. Include ALL required dependencies
-4. Check library documentation for correct CDN links
-5. For React, include Babel for JSX support
-
-📚 POPULAR CDN SOURCES:
-- unpkg.com - For npm packages
-- cdnjs.com - General purpose CDN
-- jsdelivr.net - Fast CDN for npm and GitHub
-- code.jquery.com - jQuery official CDN
-- cdn.tailwindcss.com - Tailwind CSS
-
-⚡ IMPORT ORDER:
-1. External CSS (Bootstrap, Tailwind, etc.)
-2. Local CSS files (styles.css)
-3. External JS libraries (React, jQuery, etc.)
-4. Local JS files (script.js, app.js)
-
-✅ CORRECT ORDER:
-<head>
-    <!-- 1. External CSS -->
-    <link href="https://cdn.../bootstrap.min.css" rel="stylesheet">
-    <!-- 2. Local CSS -->
-    <link rel="stylesheet" href="styles.css">
-</head>
-<body>
-    <!-- Content -->
-    
-    <!-- 3. External JS -->
-    <script src="https://cdn.../jquery.min.js"></script>
-    <!-- 4. Local JS -->
-    <script src="script.js"></script>
-</body>
-
-═══════════════════════════════════════════════════════════`
 
 export function useChatWithTools() {
   // Load sessions from localStorage on initial mount
@@ -471,6 +56,14 @@ export function useChatWithTools() {
   const streamingContentRef = useRef<string>('')
   const autoSearchManager = useRef(new AutoSearchAdapter())
   const settingsInitialized = useRef(false)
+  const abortControllerRef = useRef<AbortController | null>(null)
+
+  const cancelGeneration = useCallback(() => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort()
+      abortControllerRef.current = null
+    }
+  }, [])
 
   // Save sessions to localStorage whenever they change
   useEffect(() => {
@@ -1070,6 +663,14 @@ Format: {title}Your Summary{/title}`
       })
     }
 
+    const assistantMessageId = generateId()
+    const assistantMessage: Message = {
+      id: assistantMessageId,
+      role: 'assistant',
+      content: '',
+      timestamp: Date.now(),
+    }
+
     setIsGenerating(true)
 
     try {
@@ -1211,11 +812,9 @@ Format: {title}Your Summary{/title}`
       // Add system message only if not already present in previous messages
       const hasSystemMessage = previousMessages.some(m => m.role === 'system')
       if (!hasSystemMessage) {
-        // Use canvas-enabled system prompt if canvas tools are enabled
-        const systemPrompt = canvasToolsEnabled ? SYSTEM_PROMPT_WITH_CANVAS : DEFAULT_SYSTEM_PROMPT
         messages.push({
           role: 'system',
-          content: systemPrompt,
+          content: DEFAULT_SYSTEM_PROMPT,
         })
       }
 
@@ -1239,14 +838,6 @@ Format: {title}Your Summary{/title}`
         images: images && images.length > 0 ? images : undefined,
       })
 
-      // First AI response
-      const assistantMessage: Message = {
-        id: generateId(),
-        role: 'assistant',
-        content: '',
-        timestamp: Date.now(),
-      }
-
       addMessage(session.id, assistantMessage)
 
       // Reset streaming content
@@ -1256,10 +847,6 @@ Format: {title}Your Summary{/title}`
       let streamingComplete = false
       const streamStartTime = Date.now() // Track streaming start time
       
-      // Track code blocks being streamed
-      let currentCodeBlock: { language: string; code: string; startIndex: number } | null = null
-      let codeBlocksSent = new Set<string>() // Track which code blocks we've already sent to Canvas
-
       const processQueue = () => {
         if (chunkQueue.length === 0) {
           isProcessingQueue = false
@@ -1270,106 +857,7 @@ Format: {title}Your Summary{/title}`
         const chunk = chunkQueue.shift()!
         streamingContentRef.current += chunk
         
-        // Check for code block patterns during streaming
-        const content = streamingContentRef.current
-        let displayContent = content // Content to display in chat (without code blocks)
-        
-        // Detect start of code block: ```language
-        const codeBlockStartMatch = content.match(/```(\w+)\n([\s\S]*?)$/);
-        if (codeBlockStartMatch && !currentCodeBlock) {
-          const language = codeBlockStartMatch[1].toLowerCase()
-          const supportedLanguages = ['javascript', 'typescript', 'python', 'html', 'css', 'java', 'cpp', 'rust', 'go', 'markdown']
-          
-          if (supportedLanguages.includes(language)) {
-            const startIndex = content.lastIndexOf('```' + codeBlockStartMatch[1])
-            currentCodeBlock = {
-              language,
-              code: codeBlockStartMatch[2],
-              startIndex
-            }
-            console.log('[Stream] Started code block:', language, 'at index:', startIndex)
-          }
-        }
-        
-        // Update current code block if we're in one
-        if (currentCodeBlock) {
-          const afterStart = content.substring(currentCodeBlock.startIndex)
-          const codeMatch = afterStart.match(/```\w+\n([\s\S]*?)(?:```|$)/)
-          
-          if (codeMatch) {
-            currentCodeBlock.code = codeMatch[1]
-            
-            // Check if code block is complete (has closing ```)
-            const closingBackticks = afterStart.lastIndexOf('```')
-            const openingBackticks = afterStart.indexOf('```' + currentCodeBlock.language)
-            
-            if (closingBackticks > openingBackticks && closingBackticks > 0) {
-              // Code block is complete
-              const blockKey = `${currentCodeBlock.language}-${currentCodeBlock.startIndex}`
-              
-              if (!codeBlocksSent.has(blockKey) && currentCodeBlock.code.trim().length > 20) {
-                console.log('[Stream] Complete code block detected, sending to Canvas:', currentCodeBlock.language)
-                
-                // Dispatch to Canvas immediately
-                const event = new CustomEvent('canvasToolCall', {
-                  detail: {
-                    toolName: 'canvas_code_editor',
-                    args: {
-                      action: 'create',
-                      language: currentCodeBlock.language,
-                      code: currentCodeBlock.code.trim()
-                    }
-                  }
-                })
-                window.dispatchEvent(event)
-                
-                codeBlocksSent.add(blockKey)
-                console.log('[Stream] Code sent to Canvas')
-                
-                // Remove the complete code block from display content
-                const beforeBlock = content.substring(0, currentCodeBlock.startIndex).trim()
-                const afterBlock = content.substring(currentCodeBlock.startIndex + afterStart.substring(0, closingBackticks + 3).length).trim()
-                
-                // Build display content with proper spacing
-                displayContent = beforeBlock
-                if (beforeBlock) displayContent += '\n\n'
-                displayContent += `[Code written to Canvas: ${currentCodeBlock.language}]`
-                if (afterBlock) displayContent += '\n\n' + afterBlock
-              }
-              
-              // Reset for next code block
-              currentCodeBlock = null
-            } else {
-              // Code block is still being streamed - send partial code to Canvas for live update
-              if (currentCodeBlock.code.trim().length > 10) {
-                // Dispatch partial code to Canvas for live streaming effect
-                const event = new CustomEvent('canvasToolCall', {
-                  detail: {
-                    toolName: 'canvas_code_editor',
-                    args: {
-                      action: 'update', // Use update for streaming
-                      language: currentCodeBlock.language,
-                      code: currentCodeBlock.code.trim()
-                    }
-                  }
-                })
-                window.dispatchEvent(event)
-              }
-              
-              // Show text before code block while streaming
-              const beforeBlock = content.substring(0, currentCodeBlock.startIndex).trim()
-              
-              // Build display content - show text before code block + indicator
-              displayContent = beforeBlock
-              if (beforeBlock) displayContent += '\n\n'
-              displayContent += `[Writing code to Canvas: ${currentCodeBlock.language}...]`
-              
-              console.log('[Stream] Displaying:', displayContent.substring(0, 100))
-            }
-          }
-        }
-        
-        updateMessage(session.id, assistantMessage.id, displayContent)
+        updateMessage(session.id, assistantMessage.id, streamingContentRef.current)
 
         let delay = streamingComplete && chunkQueue.length > 20 ? 5 : 20
         setTimeout(processQueue, delay)
@@ -1378,41 +866,7 @@ Format: {title}Your Summary{/title}`
       console.log('[useChatWithTools] Sending messages to provider:', messages.length, 'messages')
       console.log('[useChatWithTools] Last message content length:', messages[messages.length - 1]?.content.length)
       console.log('[useChatWithTools] Last message preview:', messages[messages.length - 1]?.content.substring(0, 300))
-      console.log('[useChatWithTools] Canvas tools enabled:', canvasToolsEnabled)
-
-      // Prepare tools array if canvas tools are enabled
-      const tools = canvasToolsEnabled ? [
-        {
-          type: 'function' as const,
-          function: {
-            name: 'canvas_code_editor',
-            description: 'Write, edit, and execute code in the Canvas editor. Use this when the user asks for code.',
-            parameters: {
-              type: 'object',
-              properties: {
-                action: {
-                  type: 'string',
-                  enum: ['create', 'update', 'append', 'execute'],
-                  description: 'The action to perform: create (new code), update (replace code), append (add code), execute (run code)'
-                },
-                language: {
-                  type: 'string',
-                  description: 'Programming language (e.g., python, javascript, html, css)'
-                },
-                code: {
-                  type: 'string',
-                  description: 'The code content'
-                },
-                description: {
-                  type: 'string',
-                  description: 'Optional description of what the code does'
-                }
-              },
-              required: ['action']
-            }
-          }
-        }
-      ] : undefined
+      abortControllerRef.current = new AbortController()
 
       await provider.sendMessage(
         {
@@ -1420,14 +874,14 @@ Format: {title}Your Summary{/title}`
           messages,
           stream: true,
           temperature: 0.7,
-          tools,
         },
         (chunk) => {
           chunkQueue.push(chunk)
           if (!isProcessingQueue) {
             processQueue()
           }
-        }
+        },
+        abortControllerRef.current.signal
       )
 
       streamingComplete = true
@@ -1439,36 +893,7 @@ Format: {title}Your Summary{/title}`
 
       const finalContent = streamingContentRef.current
       
-      // Remove code blocks from chat that were sent to Canvas during streaming
-      try {
-        const codeBlockRegex = /```(\w+)\n([\s\S]*?)```/g
-        const codeMatches = Array.from(finalContent.matchAll(codeBlockRegex))
-        
-        console.log('[useChatWithTools] Final: Found code blocks:', codeMatches.length)
-        
-        if (codeMatches.length > 0) {
-          let chatContent = finalContent
-          
-          for (const match of codeMatches) {
-            const language = match[1].toLowerCase()
-            const code = match[2].trim()
-            
-            const supportedLanguages = ['javascript', 'typescript', 'python', 'html', 'css', 'java', 'cpp', 'rust', 'go', 'markdown']
-            if (supportedLanguages.includes(language) && code.length > 20) {
-              // Remove code block from chat content and replace with indicator
-              chatContent = chatContent.replace(match[0], `\n[Code written to Canvas: ${language}]\n`)
-            }
-          }
-          
-          // Update message with cleaned content
-          updateMessage(session.id, assistantMessage.id, chatContent.trim())
-        } else {
-          updateMessage(session.id, assistantMessage.id, finalContent)
-        }
-      } catch (error) {
-        console.error('[useChatWithTools] Error cleaning code blocks:', error)
-        updateMessage(session.id, assistantMessage.id, finalContent)
-      }
+      updateMessage(session.id, assistantMessage.id, finalContent)
 
       // Calculate token usage and citation metadata after streaming completes
       try {
@@ -1570,18 +995,33 @@ Format: {title}Your Summary{/title}`
       }
 
     } catch (error) {
-      console.error('Failed to send message:', error)
-      const errorMessage: Message = {
-        id: generateId(),
-        role: 'assistant',
-        content: `Error: ${error instanceof Error ? error.message : 'Unknown error'}`,
-        timestamp: Date.now(),
+      console.error('Error in sendMessage:', error)
+      const err = error as Error
+      
+      if (err.name === 'AbortError' || err.message?.includes('aborted') || err.message?.includes('cancelled')) {
+         // Handle cancellation safely
+         updateMessage(session.id, assistantMessage.id, streamingContentRef.current + "\n\n*[Generation cancelled]*")
+         setSessions(prev => prev.map(s => {
+           if (s.id === session.id) {
+             const messages = [...s.messages];
+             const lastMsg = messages.find(m => m.id === assistantMessage.id);
+             if (lastMsg) lastMsg.status = 'cancelled';
+             return { ...s, messages };
+           }
+           return s;
+         }))
+      } else {
+        updateMessage(
+          session.id,
+          assistantMessage.id,
+          streamingContentRef.current + "\n\n*[Error: Failed to fetch response. Please check your connection to the model provider.]*"
+        )
       }
-      addMessage(session.id, errorMessage)
     } finally {
       setIsGenerating(false)
+      abortControllerRef.current = null
     }
-  }, [currentSession, addMessage, updateMessage, updateSessionTitle, autoSearchEnabled])
+  }, [addMessage, updateMessage, currentSession, setSessions, autoSearchEnabled, webSearchSettings, canvasToolsEnabled])
 
   const deleteSession = useCallback((sessionId: string) => {
     setSessions(prev => prev.filter(s => s.id !== sessionId))
@@ -1673,5 +1113,6 @@ Format: {title}Your Summary{/title}`
     deleteSession,
     updateSessionTitle,
     getSourceRegistry,
+    cancelGeneration,
   }
 }

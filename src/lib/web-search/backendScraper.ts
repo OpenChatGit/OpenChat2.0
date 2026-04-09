@@ -1,4 +1,4 @@
-import { invoke } from '@tauri-apps/api/core';
+import { invoke } from "../api";
 
 export interface ContentMetadata {
   published_date?: string;

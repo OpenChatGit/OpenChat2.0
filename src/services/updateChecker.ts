@@ -18,19 +18,8 @@ const PACKAGE_VERSION = packageJson.version
  * In development: Uses package.json version directly
  */
 async function getCurrentVersion(): Promise<string> {
-  try {
-    // Check if we're in Tauri environment (production build)
-    if (typeof window !== 'undefined' && '__TAURI__' in window && !import.meta.env.DEV) {
-      const { getVersion } = await import('@tauri-apps/api/app')
-      const version = await getVersion()
-      console.log('[UpdateChecker] Using Tauri version:', version)
-      return version
-    }
-  } catch (error) {
-    console.warn('[UpdateChecker] Failed to get version from Tauri, using package.json:', error)
-  }
-  
   // In dev mode or if Tauri fails, use package.json version
+  console.log('[UpdateChecker] Using package.json version:', PACKAGE_VERSION)
   console.log('[UpdateChecker] Using package.json version:', PACKAGE_VERSION)
   return PACKAGE_VERSION
 }
@@ -166,14 +155,8 @@ export function cacheUpdateInfo(info: UpdateInfo): void {
  */
 export async function openDownloadPage(url: string): Promise<void> {
   try {
-    // Check if we're in Tauri
-    if (typeof window !== 'undefined' && '__TAURI__' in window) {
-      const { openUrl } = await import('@tauri-apps/plugin-opener')
-      await openUrl(url)
-    } else {
-      // Fallback for browser
-      window.open(url, '_blank')
-    }
+    // Fallback for browser
+    window.open(url, '_blank')
   } catch (error) {
     console.error('Failed to open download page:', error)
     // Fallback

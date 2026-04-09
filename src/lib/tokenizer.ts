@@ -18,7 +18,7 @@ export class Tokenizer {
     try {
       switch (provider) {
         case 'ollama':
-        case 'lmstudio':
+        case 'huggingface':
           return this.countOllamaTokens(text, model);
         default:
           return this.fallbackEstimation(text);

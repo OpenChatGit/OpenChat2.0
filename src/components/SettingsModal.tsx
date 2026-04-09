@@ -30,8 +30,8 @@ interface SettingsModalProps {
   onClose: () => void
 }
 
-type Tab = 'settings' | 'websearch' | 'cuda' | 'trainer' | 'provider-ollama' | 'provider-lmstudio'
-type ProviderType = 'ollama' | 'lmstudio'
+type Tab = 'settings' | 'websearch' | 'cuda' | 'trainer' | 'provider-ollama' | 'provider-huggingface'
+type ProviderType = 'ollama' | 'huggingface'
 
 export function SettingsModal({
   providers,
@@ -67,7 +67,7 @@ export function SettingsModal({
 
   const providerTabs = [
     { id: 'provider-ollama' as Tab, label: 'Ollama', providerType: 'ollama' as ProviderType },
-    { id: 'provider-lmstudio' as Tab, label: 'LM Studio', providerType: 'lmstudio' as ProviderType }
+    { id: 'provider-huggingface' as Tab, label: 'Hugging Face', providerType: 'huggingface' as ProviderType }
   ]
 
   return (

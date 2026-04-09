@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import { faArrowUp } from '@fortawesome/free-solid-svg-icons'
+import { faArrowUp, faSquare } from '@fortawesome/free-solid-svg-icons'
 import { Globe, Paperclip, X, Bot } from 'lucide-react'
 import { ModelSelector } from './ModelSelector'
 import { CanvasModelSelector } from './CanvasModelSelector'
@@ -12,6 +12,7 @@ import type { ProviderConfig, ModelInfo, ImageAttachment } from '../types'
 interface ChatInputProps {
   onSend?: (message: string, images?: ImageAttachment[]) => void
   onSendMessage?: (message: string, images?: ImageAttachment[]) => void
+  onStop?: () => void
   disabled?: boolean
   isGenerating?: boolean
   centered?: boolean
@@ -38,6 +39,7 @@ interface ChatInputProps {
 export function ChatInput({
   onSend,
   onSendMessage,
+  onStop,
   disabled,
   isGenerating,
   centered = false,
@@ -541,25 +543,47 @@ export function ChatInput({
                 )}
 
                 {/* Send/Stop Button */}
-                <button
-                  type="submit"
-                  disabled={!input.trim() || disabled || isGenerating}
-                  className="w-8 h-8 rounded-full flex items-center justify-center transition-all flex-shrink-0"
-                  style={{
-                    backgroundColor: input.trim() && !disabled && !isGenerating ? 'var(--color-send-button)' : 'var(--color-send-button-disabled)',
-                    cursor: input.trim() && !disabled && !isGenerating ? 'pointer' : 'not-allowed'
-                  }}
-                  title="Send message"
-                  aria-label="Send message"
-                >
-                  <FontAwesomeIcon
-                    icon={faArrowUp}
-                    className="w-4 h-4"
+                {isGenerating ? (
+                  <button
+                    type="button"
+                    onClick={onStop}
+                    className="w-8 h-8 rounded-full flex items-center justify-center transition-all flex-shrink-0"
                     style={{
-                      color: input.trim() && !disabled && !isGenerating ? 'var(--color-send-button-icon)' : 'var(--color-icon-disabled)'
+                      backgroundColor: 'var(--color-send-button)',
+                      cursor: 'pointer'
                     }}
-                  />
-                </button>
+                    title="Stop generating"
+                    aria-label="Stop generating"
+                  >
+                    <FontAwesomeIcon
+                      icon={faSquare}
+                      className="w-3 h-3"
+                      style={{
+                        color: 'var(--color-send-button-icon)'
+                      }}
+                    />
+                  </button>
+                ) : (
+                  <button
+                    type="submit"
+                    disabled={!input.trim() || disabled}
+                    className="w-8 h-8 rounded-full flex items-center justify-center transition-all flex-shrink-0"
+                    style={{
+                      backgroundColor: input.trim() && !disabled ? 'var(--color-send-button)' : 'var(--color-send-button-disabled)',
+                      cursor: input.trim() && !disabled ? 'pointer' : 'not-allowed'
+                    }}
+                    title="Send message"
+                    aria-label="Send message"
+                  >
+                    <FontAwesomeIcon
+                      icon={faArrowUp}
+                      className="w-4 h-4"
+                      style={{
+                        color: input.trim() && !disabled ? 'var(--color-send-button-icon)' : 'var(--color-icon-disabled)'
+                      }}
+                    />
+                  </button>
+                )}
               </div>
             </div>
           </form>

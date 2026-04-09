@@ -72,7 +72,7 @@ export function RuntimeInstallModal({ language, onClose, userMessage, code }: Ru
     
     // Fallback: Try Tauri shell plugin
     try {
-      const { invoke } = await import('@tauri-apps/api/core')
+      const { invoke } = await import("../lib/api")
       await invoke('plugin:shell|open', { path: url })
       console.log(`[RuntimeInstallModal] Opened URL with Tauri shell: ${url}`)
     } catch (error) {

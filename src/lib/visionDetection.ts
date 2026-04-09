@@ -104,7 +104,7 @@ export function getMaxImageSize(providerType: string): number {
     case 'anthropic':
       return 5 * 1024 * 1024; // 5MB
     case 'ollama':
-    case 'lmstudio':
+    case 'huggingface':
     case 'llamacpp':
     default:
       return 20 * 1024 * 1024; // 20MB default
@@ -119,7 +119,7 @@ export function getMaxImages(providerType: string): number {
     case 'anthropic':
       return 20;
     case 'ollama':
-    case 'lmstudio':
+    case 'huggingface':
     case 'llamacpp':
     default:
       return 10;

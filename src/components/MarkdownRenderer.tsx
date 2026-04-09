@@ -2,7 +2,7 @@ import { useEffect, useState, useRef } from 'react'
 import { marked } from 'marked'
 import DOMPurify from 'dompurify'
 import Prism from 'prismjs'
-import { openUrl } from '@tauri-apps/plugin-opener'
+import { openUrl } from "../lib/api"
 
 // Import Prism languages
 import 'prismjs/components/prism-markup'

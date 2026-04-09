@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { invoke } from '@tauri-apps/api/core'
+import { invoke } from "../lib/api"
 import type { CudaInfo } from '../types/cuda'
 
 export function useCuda() {

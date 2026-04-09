@@ -14,7 +14,7 @@ import type {
   ApiUsageData
 } from './types';
 import { ProviderError, ProviderErrorType } from './types';
-import { invoke } from '@tauri-apps/api/core';
+import { invoke } from "../../api";
 
 interface SerperAPIResponse {
   organic?: Array<{

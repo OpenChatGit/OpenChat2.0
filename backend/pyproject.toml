@@ -1,0 +1,11 @@
+[project]
+name = "openchat-backend"
+version = "0.1.0"
+description = "FastAPI backend for OpenChat2.0 replacing Tauri"
+requires-python = ">=3.10"
+dependencies = [
+    "fastapi",
+    "uvicorn",
+    "httpx",
+    "pydantic",
+]

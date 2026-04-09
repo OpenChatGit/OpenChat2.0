@@ -1,9 +1,9 @@
-// LM Studio provider implementation (OpenAI-compatible API)
+// Hugging Face provider implementation (OpenAI-compatible API)
 import { BaseProvider } from './base'
 import type { ChatCompletionRequest, ChatCompletionResponse, ModelInfo, StreamResponse } from '../types'
 import { createModelCapabilities } from '../lib/visionDetection'
 
-export class LMStudioProvider extends BaseProvider {
+export class HuggingFaceProvider extends BaseProvider {
   private buildHeaders(includeJson = false): HeadersInit {
     const headers: HeadersInit = {}
 
@@ -37,13 +37,13 @@ export class LMStudioProvider extends BaseProvider {
         name: model.id,
         size: model.size,
         details: model,
-        capabilities: createModelCapabilities(model.id, 'lmstudio'),
+        capabilities: createModelCapabilities(model.id, 'huggingface'),
       }))
     } catch (error) {
       // Silently handle connection errors - provider is likely not running
       const errorMessage = error instanceof Error ? error.message : String(error)
       if (!errorMessage.includes('Failed to fetch') && !errorMessage.includes('ERR_CONNECTION_REFUSED')) {
-        console.warn('LM Studio listModels error:', error)
+        console.warn('Hugging Face listModels error:', error)
       }
       return []
     }
@@ -70,7 +70,7 @@ export class LMStudioProvider extends BaseProvider {
     
     // Log if tools are being sent
     if (request.tools && request.tools.length > 0) {
-      console.log('[LMStudio] Sending tools:', request.tools.length, 'tools')
+      console.log('[HuggingFace] Sending tools:', request.tools.length, 'tools')
     }
 
     if (!onChunk) {
@@ -87,7 +87,7 @@ export class LMStudioProvider extends BaseProvider {
       )
 
       if (!response.ok) {
-        throw new Error(`LM Studio request failed: ${response.statusText}`)
+        throw new Error(`Hugging Face request failed: ${response.statusText}`)
       }
 
       const data: ChatCompletionResponse = await response.json()
@@ -111,7 +111,7 @@ export class LMStudioProvider extends BaseProvider {
     )
 
     if (!response.ok) {
-      throw new Error(`LM Studio request failed: ${response.statusText}`)
+      throw new Error(`Hugging Face request failed: ${response.statusText}`)
     }
 
     const reader = response.body?.getReader()
