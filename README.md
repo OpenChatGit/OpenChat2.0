@@ -1,4 +1,4 @@
-﻿![OpenChat screenshot](https://i.imgur.com/YVcZIrN.png)
+![OpenChat screenshot](https://i.imgur.com/YVcZIrN.png)
 
 # OpenChat
 
@@ -7,7 +7,7 @@
 ![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey)
 ![Free Forever](https://img.shields.io/badge/free-forever-brightgreen)
 
-OpenChat is a modular, cross-platform LLM chat application built with Tauri, React, and TypeScript. It delivers a ChatGPT-style interface that connects seamlessly to local AI providers such as Ollama and LM Studio, with integrated CUDA support and Hugging Face training capabilities.
+OpenChat is a modern, modular LLM chat application featuring a Next-Gen FastAPI Python backend and a React/TypeScript frontend. It connects seamlessly to local AI providers like Ollama and Cloud solutions like Hugging Face Serverless endpoints, with integrated CUDA support and Hugging Face training capabilities.
 
 > � ***MAJOR UPDATE - Complete Architecture Overhaul:** This version of OpenChat has been completely rebuilt from the ground up with a modern, modular architecture. The codebase has been significantly refactored for better performance, maintainability, and user experience. Some legacy features have been removed or streamlined as they were no longer necessary with the new architecture. If you're upgrading from an older version, please note that this is essentially a new application with improved design patterns and enhanced capabilities.
 
@@ -44,21 +44,10 @@ OpenChat is a modular, cross-platform LLM chat application built with Tauri, Rea
 
 OpenChat has been completely rebuilt from the ground up with a modern, modular architecture and powerful new features!
 
-**🎨 Canvas Mode Revolution:**
-- **Independent Canvas System** – Completely separate chat system for Canvas with its own session management
-- **LIVE Code Streaming** – Code appears in real-time as the AI writes it, character by character
-- **Smart Code Detection** – Automatically extracts and displays the main code block from AI responses
-- **Persistent Language Recognition** – Canvas remembers the programming language across sessions and reloads
-- **Multi-Language Support** – 20+ programming languages with full syntax highlighting
-- **Real-Time Execution** – Run code directly in the canvas with instant output
 
 **🏗️ Modern Architecture:**
 - **Modular Hook System** – Clean separation of concerns with dedicated hooks:
-  - `useCanvasChat` – Independent Canvas chat with tool integration
-  - `useCanvasManager` – Canvas mode orchestration and state management
   - `useChatWithTools` – Main chat with web search and tool support
-- **Event-Driven Canvas Updates** – Real-time code streaming via custom events
-- **Type-Safe Tool System** – Fully typed Canvas tool definitions and validation
 - **Optimized Performance** – Lazy loading, debounced updates, and efficient re-rendering
 
 **🔧 Enhanced Features:**
@@ -66,12 +55,11 @@ OpenChat has been completely rebuilt from the ground up with a modern, modular a
 - **Hugging Face Integration** – Seamless authentication and Trainer API access
 - **Free Web Search** – 100% free web search with intelligent auto-detection and citations
 - **Vision Support** – Send images to vision-capable models with automatic processing
-- **Streamlined Providers** – Focus on local providers (Ollama, LM Studio) for privacy
+- **Streamlined Providers** – Focus on local providers (Ollama) for privacy
 
 **🎯 Developer Experience:**
 - **Clean Codebase** – App.tsx reduced by ~150 lines through modular architecture
 - **No TypeScript Errors** – Fully typed with proper interfaces and type guards
-- **Better Separation** – Canvas and Chat systems are completely independent
 - **Easier Maintenance** – Each feature has its own dedicated module
 
 See the full [CHANGELOG.md](CHANGELOG.md) for detailed release notes.
@@ -83,18 +71,17 @@ See the full [CHANGELOG.md](CHANGELOG.md) for detailed release notes.
 This version represents a **complete architectural overhaul** of OpenChat. Here's what you need to know:
 
 **✅ Enhanced & Improved:**
-- **Canvas Mode** – Completely rebuilt with LIVE code streaming and independent chat system
 - **Web Search** – Streamlined with better performance and 100% free operation
 - **Architecture** – Modular hook system with clean separation of concerns
 - **Performance** – Optimized with lazy loading, debounced updates, and efficient re-rendering
 - **Type Safety** – Full TypeScript coverage with proper interfaces
-- **Session Management** – Improved with separate Canvas and Chat sessions
+- **Session Management** – Improved session and chat history handling.
 
 **🗑️ Removed Features:**
 - **Cloud Providers** – Removed Anthropic, OpenAI, Google, Groq, and other cloud providers to focus on local, privacy-first solutions
 - **Plugin System** – Removed in favor of built-in, well-integrated features
 - **Persona Settings** – Simplified to streamline user experience
-- **Legacy Tool System** – Replaced with modern Canvas tool integration
+- **Legacy Tool System** – Replaced with modern internal tool integration
 
 **🎯 Why These Changes?**
 
@@ -105,14 +92,13 @@ The removed features were either:
 4. **Complexity** – Added unnecessary complexity to the codebase
 
 **📦 What You Keep:**
-- All your local chat sessions (automatically migrated)
-- Provider configurations (Ollama, LM Studio)
+- All your local chat sessions
+- Provider configurations (Ollama)
 - Settings and preferences
 - CUDA and Hugging Face configurations
 
-**🚀 What You Gain:**
-- LIVE code streaming in Canvas mode
-- Independent Canvas chat system
+- Enhanced backend speeds via FastAPI python core
+- Improved memory management and API request efficiency
 - Better performance and stability
 - Cleaner, more maintainable codebase
 - Enhanced developer experience
@@ -121,29 +107,13 @@ The removed features were either:
 
 **For Users:**
 - If you relied on cloud providers, consider using Ollama with cloud-hosted models
-- Explore the new Canvas mode for an enhanced coding experience
 - Check out the improved web search with automatic detection
 
 **For Developers:**
 - Review the new architecture documentation
 - Explore the modular hook system
-- Check out the Canvas tool integration examples
 
 ## Features
-
-### 🎨 Canvas Mode (Revolutionary)
-- **LIVE Code Streaming** – Code appears in real-time as AI writes it, character by character
-- **Multi-File Support** – AI can create multiple files at once (HTML, CSS, JS separately)
-- **File Explorer Dropdown** – Switch between multiple files with live updates
-- **Independent Chat System** – Separate session management for Canvas with its own message history
-- **Smart Code Detection** – Automatically extracts all code blocks from AI responses
-- **Persistent Language Recognition** – Remembers programming language across sessions and reloads
-- **20+ Languages** – Full syntax highlighting for Python, JavaScript, TypeScript, Java, C++, Rust, Go, and more
-- **Real-Time Execution** – Run code directly with instant output display
-- **Sandboxed Package Manager** – Install packages in isolated venv/node_modules (never touches system)
-- **Package Manager Dropdown** – View installed packages and errors in dedicated dropdown
-- **Resizable Interface** – Drag-and-drop resizing for chat sidebar and editor
-- **Session Management** – Create, switch, rename, and delete Canvas sessions
 
 ### 💬 Chat Experience
 - **Modern Interface** – ChatGPT-inspired layout with full dark-mode support
@@ -153,17 +123,18 @@ The removed features were either:
 - **Token Usage Tracking** – Detailed consumption metrics (input/output/total) per response
 - **Syntax Highlighting** – Persistent Prism.js highlighting across navigation and reloads
 
-### 💎 Subscription Plans
-- **Free Forever** – Unlimited local AI models, Canvas, and code execution (100% free)
-- **Pro ($9.99/mo)** – 1,000 SERP web searches per month for enhanced research
-- **Pro+ ($19.99/mo)** – 3,000 SERP searches + API access and team features
-- **Upgrade Modal** – Beautiful, modern pricing cards with clear feature breakdown
-- **Flexible Billing** – Monthly subscriptions with 14-day money-back guarantee
+### 💎 Support & Subscription Plans (Upcoming)
+OpenChat is fundamentally **100% Free** and fully featured for local AI usage. The subscription tiers seen in the interface are **not yet active**. Once available, they will primarily serve as a way to **donate** and support development.
+
+- **Free Forever** – Unlimited local AI models and standard features (100% free).
+- **Development Support** – Future plans will act as an optional way to support the author.
+- **Premium Web Search (Planned)** – Because high-level web search relies on expensive external APIs, there will eventually be costs associated with Premium Web Search tiers to cover API fees.
+- **Gradual Updates** – Other experimental or premium-tier features will be added gradually over time.
 
 ### 🔍 Web Search (100% Free)
 - **No API Keys Required** – Completely free web search using DuckDuckGo
 - **Intelligent Auto-Detection** – Automatically determines when search would be helpful
-- **Backend Scraping** – Rust-based Tauri backend handles all web scraping
+- **Backend Scraping** – Python FastAPI backend handles all web scraping
 - **Inline Citations** – Source favicons and links displayed with search results
 - **RAG Processing** – Content chunking, relevance ranking, and context injection
 - **Real-Time Progress** – Animated search indicators and status updates
@@ -195,24 +166,22 @@ The removed features were either:
 - **Type-Safe** – Fully typed with TypeScript interfaces and type guards
 - **Event-Driven** – Real-time updates via custom events
 - **Optimized Performance** – Lazy loading, debounced updates, efficient re-rendering
-- **Native Performance** – Tauri application shell keeps UI fast and lightweight
-- **Local-First** – Focus on privacy with local providers (Ollama, LM Studio)
+- **Native Performance** – FastAPI python backend powers the native file and execution APIs
+- **Local-First** – Focus on privacy with local providers (Ollama)
 
 ## Supported Providers
 
 | Provider | Default endpoint | Vision Support | Notes |
 | --- | --- | --- | --- |
 | **Ollama** | `http://localhost:11434` | ✅ Yes | Local LLM runtime and default backend. Supports vision models like Llama 3.2 Vision, LLaVA, and Bakllava. |
-| **LM Studio** | `http://localhost:1234` | ✅ Yes | Desktop application for running quantized models. |
-
-> 📢 **Deprecation Notice:** LM Studio integration will be removed in upcoming updates. Despite this project being largely built around LM Studio, there were disagreements in the LM Studio Discord regarding alleged self-promotion (which never occurred), and the project was deemed "out of scope" for their community. We respect their decision and will focus on other providers moving forward.
+| **Hugging Face** | `https://api-inference.huggingface.co` | ✅ Yes | Full integration with Hugging Face Serverless Inference APIs, allowing access to tens of thousands of cloud models with secure API Key storage. |
 
 ## Getting Started
 
 ### Prerequisites
 
 - Node.js (v18 or higher)
-- Rust (for Tauri)
+- Python 3.10+ (for FastAPI backend)
 - One of the supported LLM providers running locally
 
 ### Installation
@@ -224,23 +193,20 @@ The removed features were either:
    npm install
    ```
 
-2. Start the React development server:
+2. Set up the Python Backend:
+
+   ```bash
+   cd backend
+   python -m venv .venv
+   .venv\Scripts\activate # On Windows
+   pip install -r requirements.txt
+   uvicorn main:app --reload --port 8000
+   ```
+
+3. Start the React frontend (in a new terminal):
 
    ```bash
    npm run dev
-   ```
-
-3. Launch the desktop shell with Tauri:
-
-   ```bash
-   npm run tauri dev
-   ```
-
-4. Build production artifacts when you are ready to ship:
-
-   ```bash
-   npm run build
-   npm run tauri build
    ```
 
 ## Vision Support
@@ -286,7 +252,7 @@ OpenChat features a completely rebuilt web search system that's **100% free** an
 
 - **Completely Free** – No API keys, no costs, no limits. Uses DuckDuckGo search with backend scraping.
 - **Intelligent Auto-Detection** – Automatically determines when web search would be beneficial based on query analysis.
-- **Backend Scraping** – Rust-based Tauri backend handles all web scraping, eliminating the need for Puppeteer or browser dependencies.
+- **Backend Scraping** – Python FastAPI backend handles all web scraping, eliminating the need for Puppeteer or browser dependencies.
 - **Streamlined UI** – Minimal, elegant search indicators:
   - "Searching web" with animated spinner during search
   - "Searched Web" with source favicons (up to 5) after completion
@@ -298,7 +264,7 @@ OpenChat features a completely rebuilt web search system that's **100% free** an
 
 - **AutoSearchManager** (`src/lib/web-search/autoSearchManager.ts`) – Orchestrates search decisions, execution, and context injection.
 - **SearchOrchestrator** (`src/lib/web-search/searchOrchestrator.ts`) – Coordinates search queries, scraping, and RAG processing.
-- **BackendScraper** (`src/lib/web-search/backendScraper.ts`) – Interfaces with Tauri backend for efficient web scraping.
+- **BackendScraper** (`src/lib/web-search/backendScraper.ts`) – Interfaces with FastAPI backend for efficient web scraping.
 - **LazyLoader** (`src/lib/web-search/lazyLoader.ts`) – Dynamically loads search components to optimize performance.
 - **SearchEvents** (`src/lib/web-search/searchEvents.ts`) – Event system for real-time search progress updates.
 
@@ -356,169 +322,6 @@ OpenChat integrates seamlessly with Hugging Face, providing authentication and a
 3. Copy the token and paste it into the login modal
 4. Keep your token secure and never share it publicly
 
-## Canvas Mode
-
-OpenChat features a revolutionary Canvas mode with **LIVE code streaming** and an independent chat system, providing a collaborative coding experience that rivals ChatGPT Canvas.
-
-### 🎨 Core Features
-
-- **LIVE Code Streaming** – Watch code appear in real-time as the AI writes it, character by character
-- **Independent Chat System** – Canvas has its own dedicated chat with separate session management
-- **Smart Code Detection** – Automatically extracts the main code block from AI responses
-- **Persistent Language Recognition** – Canvas remembers programming languages across sessions and reloads
-- **Multi-Language Support** – 20+ languages including Python, JavaScript, TypeScript, Java, C++, Rust, Go, Ruby, PHP, Swift, Kotlin, C#, SQL, Bash, and more
-- **Real-Time Execution** – Run code directly with instant output display
-- **Auto Package Installation** – Automatically detects and installs missing Python packages in isolated environment
-- **Sandboxed Package Manager** – Install packages in isolated venv/node_modules (never touches system)
-- **Resizable Interface** – Adjust chat sidebar and editor widths with smooth drag-and-drop
-- **Code Management** – Copy, download, and reset code with convenient toolbar buttons
-- **Syntax Highlighting** – Powered by Prism.js with automatic language detection
-- **Safe Preview Mode** – HTML/CSS previews are sandboxed to prevent navigation and protect the Canvas
-
-### 🚀 How It Works
-
-**LIVE Streaming Architecture:**
-```
-User: "Write a Python script to calculate fibonacci"
-↓
-AI starts responding with code block:
-```python
-def fibonacci(n):
-    if n <= 1:
-↓ INSTANTLY appears in Canvas!
-        return n
-    return fibonacci(n-1) + fibonacci(n-2)
-↓ Updates in real-time as AI writes!
-```
-↓ Final code is saved to Canvas session
-
-**Independent Session Management:**
-- Canvas sessions are stored separately from main chat sessions
-- Each Canvas session has its own message history and code state
-- Switch between Canvas sessions without affecting main chat
-- Code and language persist across app reloads
-
-### 📝 Usage
-
-1. **Enter Canvas Mode** – Click the "Canvas" button in the chat interface
-2. **Ask for Code** – Request the AI to write code in any supported language
-3. **Watch It Stream** – Code appears in real-time as the AI writes it
-4. **Run & Test** – Execute code directly in the canvas with instant output
-5. **Auto Package Install** – Missing Python packages are automatically detected and installed
-6. **Manual Package Install** – Click the package icon (📦) to manually install dependencies
-7. **Chat & Iterate** – Continue chatting to refine and improve the code
-8. **Exit Canvas** – Return to normal chat mode anytime
-
-### 📦 Package Management (Sandboxed)
-
-**🔒 Isolated Environment:**
-Each Canvas session has its own isolated environment:
-- **Python**: Virtual environment (venv) created per session
-- **Node.js**: Local node_modules directory per session
-- **Automatic Cleanup**: Environment is deleted when session ends or code is cleared
-- **No System Pollution**: Packages are never installed globally on your system
-
-**Automatic Installation (Python):**
-When you run Python code that imports a missing package, Canvas will:
-1. Create an isolated virtual environment (if not exists)
-2. Detect the `ModuleNotFoundError`
-3. Automatically install the missing package via `pip` in the venv
-4. Retry execution with the newly installed package
-
-**Manual Installation:**
-1. Click the package icon (📦) in the editor toolbar
-2. Enter the package name (e.g., `requests`, `numpy`, `axios`)
-3. Click "Install" or press Enter
-4. The package will be installed in the isolated environment:
-   - Python: `venv/Scripts/pip install <package>`
-   - JavaScript/TypeScript: `npm install <package> --prefix .canvas_env`
-
-**Environment Cleanup:**
-- Click "Clean" button to manually remove all packages and the environment
-- Environment is automatically deleted when:
-  - You switch to a different Canvas session
-  - You exit Canvas mode
-  - You close the application
-
-**Supported Package Managers:**
-- Python: pip (in virtual environment)
-- Node.js: npm (local installation)
-
-### 🏗️ Technical Architecture
-
-**Modular Hook System:**
-- `useCanvasChat` – Independent chat system with tool integration
-- `useCanvasManager` – Canvas mode orchestration and state management
-- `streamCodeToCanvas` – Real-time code streaming with hash-based deduplication
-- Event-driven updates via `canvasCodeStream` custom events
-
-**Smart Code Processing:**
-- Extracts the **first** code block (main code) from AI responses
-- Ignores examples and additional code blocks
-- Supports both markdown code blocks and explicit tool calls
-- Hash-based change detection prevents duplicate updates
-
-**Persistent State:**
-- Canvas sessions: `canvas-chat-sessions` (localStorage)
-- Current session: `current-canvas-session` (localStorage)
-- Canvas mode: `isCanvasMode` (localStorage)
-- Language and code persist across reloads
-
-### 🎯 Supported Languages
-
-**Full Syntax Highlighting:**
-- **Web**: JavaScript, TypeScript, HTML, CSS, JSON, YAML, Markdown
-- **Systems**: C, C++, Rust, Go
-- **OOP**: Java, C#, Kotlin, Swift
-- **Scripting**: Python, Ruby, PHP, Bash/Shell
-- **Database**: SQL
-- **Config**: XML, YAML, JSON
-
-**Automatic Detection:**
-The editor automatically detects the language based on:
-- Markdown code block language tags (```python)
-- Code patterns and syntax
-- File extensions (if provided)
-
-### 💡 Advanced Features
-
-**Code Streaming:**
-- Real-time character-by-character updates
-- Smooth, responsive UI during streaming
-- No lag or performance issues
-- Automatic completion detection
-
-**Session Management:**
-- Create multiple Canvas sessions
-- Switch between sessions instantly
-- Rename and delete sessions
-- Each session maintains its own code and chat history
-
-**Language Persistence:**
-- Language is saved with each session
-- Prevents auto-detection from overriding saved language
-- Python stays Python, JavaScript stays JavaScript
-- Works across app reloads and session switches
-
-### 🔧 For Developers
-
-**Adding Canvas Support to Your AI:**
-Simply respond with markdown code blocks:
-```markdown
-Here's your Python script:
-```python
-print("Hello, World!")
-```
-```
-
-The Canvas system will automatically:
-1. Detect the code block during streaming
-2. Extract the language and code
-3. Stream it to the Canvas in real-time
-4. Save it to the session when complete
-
-No special tool calls or formatting required!
-
 ## Architecture
 
 OpenChat features a modern, modular architecture with clean separation of concerns:
@@ -533,12 +336,6 @@ App.tsx (Simplified - ~150 lines smaller!)
 │  ├─ Web Search Integration
 │  └─ Tool Support
 │
-└─ useCanvasManager (Canvas Orchestration)
-   └─ useCanvasChat (Independent Canvas System)
-      ├─ Canvas Session Management
-      ├─ Message Streaming
-      ├─ Code Detection & Streaming
-      └─ Canvas Tool Integration
 ```
 
 ### 📦 Key Modules
@@ -550,21 +347,17 @@ App.tsx (Simplified - ~150 lines smaller!)
 - `ChatMessage.tsx` – Message rendering with markdown and syntax highlighting
 
 **Canvas System:**
-- `useCanvasChat.ts` – Independent Canvas chat with tool integration
-- `useCanvasManager.ts` – Canvas mode orchestration and state management
-- `Canvas.tsx` – Canvas interface with code editor and chat
-- `canvasTool.ts` – Canvas tool definitions and validation
 
 **Web Search:**
 - `autoSearchManager.ts` – Search orchestration and decision making
 - `searchOrchestrator.ts` – Query coordination and RAG processing
-- `backendScraper.ts` – Tauri backend interface for web scraping
+- `backendScraper.ts` – FastAPI backend interface for web scraping
 - `searchEvents.ts` – Real-time search progress updates
 
 **Providers:**
 - `BaseProvider.ts` – Abstract base class for all providers
 - `OllamaProvider.ts` – Ollama integration
-- `LMStudioProvider.ts` – LM Studio integration
+- `` –  integration
 - `ProviderFactory.ts` – Provider instantiation and management
 
 ### 🔄 Data Flow
@@ -578,18 +371,6 @@ User Input → useChatWithTools → Provider → Streaming Response → ChatMess
               RAG Context Injection
 ```
 
-**Canvas Mode:**
-```
-User Input → useCanvasManager → useCanvasChat → Provider → Streaming Response
-                                                                    ↓
-                                                          Code Detection
-                                                                    ↓
-                                                    canvasCodeStream Event
-                                                                    ↓
-                                                          Canvas Component
-                                                                    ↓
-                                                    LIVE Code Display
-```
 
 ### 💾 State Management
 
@@ -598,14 +379,10 @@ User Input → useCanvasManager → useCanvasChat → Provider → Streaming Res
 - Current: `current-session` (localStorage)
 - Provider: `providers` (localStorage)
 
-**Canvas:**
-- Sessions: `canvas-chat-sessions` (localStorage)
-- Current: `current-canvas-session` (localStorage)
-- Mode: `isCanvasMode` (localStorage)
 
 **Settings:**
 - Web Search: `webSearchSettings` (localStorage)
-- CUDA: Detected via Tauri backend
+- CUDA: Detected via FastAPI backend
 - Hugging Face: `hf_token` (localStorage)
 
 ## Adding a New Provider
@@ -628,10 +405,8 @@ Providers can be configured through the Settings panel:
 
 Use the scripts in `package.json` to streamline your workflow:
 
-- `npm run dev` – Runs the Vite development server with fast HMR.
-- `npm run tauri dev` – Boots the Tauri desktop shell for local testing.
-- `npm run build` – Produces optimized assets for deployment.
-- `npm run tauri build` – Generates platform-specific binaries.
+- `npm run dev` – Runs the Vite development server for the frontend.
+- `uvicorn main:app --reload` – Runs the FastAPI backend server on port 8000.
 
 ## Performance & Optimization
 
@@ -665,7 +440,7 @@ OpenChat is built with performance in mind:
 
 ## Tech Stack
 
-- **Tauri** – Lightweight desktop shell that wraps the web UI
+- **FastAPI (Python)** – Robust backend handling streaming, system capabilities, and file management
 - **React** – Component-driven UI development with hooks
 - **TypeScript** – Static typing across the entire application
 - **TailwindCSS** – Utility-first styling system
@@ -682,4 +457,4 @@ MIT
 
 ## Recommended IDE Setup
 
-- [VS Code](https://code.visualstudio.com/) + [Tauri](https://marketplace.visualstudio.com/items?itemName=tauri-apps.tauri-vscode) + [rust-analyzer](https://marketplace.visualstudio.com/items?itemName=rust-lang.rust-analyzer)
+- [VS Code](https://code.visualstudio.com/) + [FastAPI](https://marketplace.visualstudio.com/items?itemName=tauri-apps.tauri-vscode) + [rust-analyzer](https://marketplace.visualstudio.com/items?itemName=rust-lang.rust-analyzer)
