@@ -1,253 +1,179 @@
-import { useState, useRef, useEffect } from 'react'
-import { MoreVertical } from 'lucide-react'
+import { useState } from 'react'
+import { 
+  Plus, 
+  MessageSquare, 
+  Search, 
+  Zap,
+  Cpu,
+  MoreVertical,
+  Trash2,
+  Edit2
+} from 'lucide-react'
+import { useCredits } from '../hooks/useCredits'
 import { ProfileButton } from './ProfileButton'
 import type { ChatSession } from '../types'
-import { formatTimestamp } from '../lib/utils'
 import { cn } from '../lib/utils'
-import type { UpdateInfo } from '../services/updateChecker'
-import downloadIcon from '../assets/download.svg'
 
 interface SidebarProps {
   sessions: ChatSession[]
   currentSession: ChatSession | null
-  updateInfo: UpdateInfo | null
   onNewChat: () => void
   onSelectSession: (session: ChatSession) => void
   onDeleteSession: (sessionId: string) => void
   onRenameSession: (sessionId: string, newTitle: string) => void
   onOpenSettings: () => void
-  onToggleSidebar: () => void
-  onOpenUpdate: () => void
+  onOpenUpgrade: () => void
 }
 
-export function Sidebar({
-  sessions,
-  currentSession,
-  updateInfo,
-  onNewChat,
-  onSelectSession,
-  onDeleteSession,
-  onRenameSession,
-  onOpenSettings,
-  onToggleSidebar,
-  onOpenUpdate,
+export function Sidebar({ 
+  sessions, 
+  currentSession, 
+  onNewChat, 
+  onSelectSession, 
+  onDeleteSession, 
+  onRenameSession, 
+  onOpenSettings, 
+  onOpenUpgrade
 }: SidebarProps) {
+  const { credits } = useCredits()
+  const [searchQuery, setSearchQuery] = useState('')
   const [openMenuId, setOpenMenuId] = useState<string | null>(null)
-  const [editingSessionId, setEditingSessionId] = useState<string | null>(null)
-  const [editingTitle, setEditingTitle] = useState('')
-  const [deletingSessionId, setDeletingSessionId] = useState<string | null>(null)
-  const sidebarRef = useRef<HTMLDivElement>(null)
-  const editingInputRef = useRef<HTMLInputElement | null>(null)
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editTitle, setEditTitle] = useState('')
 
-  useEffect(() => {
-    if (!openMenuId && !deletingSessionId) {
-      return
-    }
-
-    const handleClickOutside = (event: MouseEvent) => {
-      if (sidebarRef.current && !sidebarRef.current.contains(event.target as Node)) {
-        setOpenMenuId(null)
-        setDeletingSessionId(null)
-      }
-    }
-
-    document.addEventListener('mousedown', handleClickOutside)
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside)
-    }
-  }, [openMenuId, deletingSessionId])
-
-  useEffect(() => {
-    if (editingSessionId) {
-      requestAnimationFrame(() => {
-        editingInputRef.current?.focus()
-        editingInputRef.current?.select()
-      })
-    }
-  }, [editingSessionId])
-
-  const handleRename = (session: ChatSession) => {
-    setEditingSessionId(session.id)
-    setEditingTitle(session.title)
-    setDeletingSessionId(null)
+  const handleRename = (id: string, title: string) => {
+    setEditingId(id)
+    setEditTitle(title)
     setOpenMenuId(null)
   }
 
-  const handleDelete = (sessionId: string) => {
-    if (deletingSessionId === sessionId) {
-      onDeleteSession(sessionId)
-      setDeletingSessionId(null)
-      setOpenMenuId(null)
-    } else {
-      setDeletingSessionId(sessionId)
+  const submitRename = (id: string) => {
+    if (editTitle.trim()) {
+      onRenameSession(id, editTitle)
     }
+    setEditingId(null)
   }
 
-  const submitRename = () => {
-    if (!editingSessionId) return
-
-    const trimmed = editingTitle.trim()
-    if (trimmed.length > 0) {
-      onRenameSession(editingSessionId, trimmed)
-    }
-    setEditingSessionId(null)
-    setEditingTitle('')
-  }
-
-  const cancelRename = () => {
-    setEditingSessionId(null)
-    setEditingTitle('')
-  }
+  const filteredSessions = sessions.filter(s => 
+    s.title.toLowerCase().includes(searchQuery.toLowerCase())
+  )
 
   return (
-    <div
-      ref={sidebarRef}
-      className="flex flex-col h-full w-64"
-      style={{ backgroundColor: 'var(--color-sidebar)' }}
-    >
-      {/* Header with Icon Buttons */}
-      <div className="p-3 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          {/* New Chat Button */}
-          <button
-            onClick={onNewChat}
-            className="p-2 rounded-lg hover:bg-white/10 transition-colors"
-            title="New Chat"
-            aria-label="New Chat"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" height="20px" viewBox="0 -960 960 960" width="20px" fill="currentColor">
-              <path d="M200-120q-33 0-56.5-23.5T120-200v-560q0-33 23.5-56.5T200-840h357l-80 80H200v560h560v-278l80-80v358q0 33-23.5 56.5T760-120H200Zm280-360ZM360-360v-170l367-367q12-12 27-18t30-6q16 0 30.5 6t26.5 18l56 57q11 12 17 26.5t6 29.5q0 15-5.5 29.5T897-728L530-360H360Zm481-424-56-56 56 56ZM440-440h56l232-232-28-28-29-28-231 231v57Zm260-260-29-28 29 28 28 28-28-28Z"/>
-            </svg>
-          </button>
-
-
-          {/* Update Available Button */}
-          {updateInfo?.available && (
-            <button
-              onClick={onOpenUpdate}
-              className="p-2 rounded-lg hover:bg-white/10 transition-colors relative animate-pulse"
-              title={`Update available: v${updateInfo.latestVersion}`}
-              aria-label="Update available"
-            >
-              <img src={downloadIcon} alt="Download" className="w-5 h-5" />
-              <span className="absolute top-1 right-1 w-2 h-2 bg-green-500 rounded-full"></span>
-            </button>
-          )}
-        </div>
-
-        {/* Sidebar Toggle Button */}
+    <div className="flex flex-col h-full border-r" style={{ backgroundColor: 'var(--color-sidebar)', borderColor: 'var(--color-border)' }}>
+      {/* Header */}
+      <div className="p-3 mb-2">
         <button
-          onClick={onToggleSidebar}
-          className="p-2 rounded-lg hover:bg-white/10 transition-colors"
-          title="Close Sidebar"
-          aria-label="Close Sidebar"
+          onClick={onNewChat}
+          className="w-full h-11 flex items-center gap-3 px-4 rounded-xl transition-all group"
+          style={{ backgroundColor: 'var(--color-secondary)', border: '1px solid var(--color-border)' }}
         >
-          <svg xmlns="http://www.w3.org/2000/svg" height="20px" viewBox="0 -960 960 960" width="20px" fill="currentColor">
-            <path d="M200-120q-33 0-56.5-23.5T120-200v-560q0-33 23.5-56.5T200-840h560q33 0 56.5 23.5T840-760v560q0 33-23.5 56.5T760-120H200Zm440-80h120v-560H640v560Zm-80 0v-560H200v560h360Zm80 0h120-120Z"/>
-          </svg>
+          <Plus size={18} className="opacity-60 group-hover:opacity-100" />
+          <span className="text-sm font-semibold opacity-80 group-hover:opacity-100">New Chat</span>
         </button>
       </div>
 
-      {/* Sessions List */}
-      <div className="flex-1 overflow-y-auto p-2">
-        {sessions.length === 0 ? (
-          <div className="text-center text-muted-foreground text-sm py-8">
-            No chats yet
-          </div>
-        ) : (
-          <div className="space-y-1">
-            {sessions.map((session) => {
-              const isActive = currentSession?.id === session.id
-              const isMenuOpen = openMenuId === session.id
-
-              return (
-                <div
-                  key={session.id}
-                  className={cn(
-                    'relative flex items-center p-3 rounded-lg cursor-pointer transition-colors',
-                    'hover:bg-accent',
-                    isActive && 'bg-accent'
-                  )}
-                  onClick={() => onSelectSession(session)}
-                >
-                  <div className="flex-1 min-w-0">
-                    {editingSessionId === session.id ? (
-                      <input
-                        ref={editingInputRef}
-                        value={editingTitle}
-                        onChange={(event) => setEditingTitle(event.target.value)}
-                        onClick={(event) => event.stopPropagation()}
-                        onKeyDown={(event) => {
-                          if (event.key === 'Enter') {
-                            event.preventDefault()
-                            submitRename()
-                          }
-                          if (event.key === 'Escape') {
-                            event.preventDefault()
-                            cancelRename()
-                          }
-                        }}
-                        onBlur={() => submitRename()}
-                        className="w-full rounded-md bg-white/10 px-2 py-1 text-sm text-foreground outline-none focus:bg-white/20"
-                      />
-                    ) : (
-                      <div className="text-sm font-medium truncate" title={session.title}>
-                        {session.title}
-                      </div>
-                    )}
-                    <div className="text-xs text-muted-foreground">
-                      {formatTimestamp(session.updatedAt)}
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2 ml-2">
-                    <button
-                      className="p-2 rounded-md hover:bg-white/10 transition-colors"
-                      onClick={(event) => {
-                        event.stopPropagation()
-                        setOpenMenuId((prev) => (prev === session.id ? null : session.id))
-                        setDeletingSessionId(null)
-                      }}
-                      aria-label="Chat actions"
-                      title="Chat actions"
-                    >
-                      <MoreVertical className="w-4 h-4 text-muted-foreground" />
-                    </button>
-                  </div>
-
-                  {isMenuOpen && (
-                    <div
-                      className="absolute right-2 top-10 z-20 w-32 rounded-md shadow-lg border border-white/10"
-                      style={{ backgroundColor: 'var(--color-sidebar)' }}
-                    >
-                      <button
-                        className="w-full text-left px-3 py-2 text-sm hover:bg-white/10 transition-colors"
-                        onClick={(event) => {
-                          event.stopPropagation()
-                          handleRename(session)
-                        }}
-                      >
-                        Rename
-                      </button>
-                      <button
-                        className="w-full text-left px-3 py-2 text-sm text-red-400 hover:bg-white/10 transition-colors"
-                        onClick={(event) => {
-                          event.stopPropagation()
-                          handleDelete(session.id)
-                        }}
-                      >
-                        {deletingSessionId === session.id ? 'Sure?' : 'Delete'}
-                      </button>
-                    </div>
-                  )}
-                </div>
-              )
-            })}
-          </div>
-        )}
+      {/* Search */}
+      <div className="px-3 mb-4">
+        <div className="relative group">
+          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 opacity-30 group-focus-within:opacity-60 transition-colors" />
+          <input
+            type="text"
+            placeholder="Search chats..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full h-9 pl-9 pr-4 rounded-lg bg-muted/30 border border-transparent focus:border-border outline-none text-xs placeholder:opacity-20 transition-all font-medium"
+          />
+        </div>
       </div>
 
-      {/* Footer - Profile Button with CUDA Status */}
-      <div className="p-3 border-t" style={{ borderColor: 'rgba(255, 255, 255, 0.1)' }}>
+      {/* Sessions List */}
+      <div className="flex-1 overflow-y-auto px-2 space-y-1 custom-scrollbar">
+        {filteredSessions.map((session) => (
+          <div
+            key={session.id}
+            className={cn(
+              "group relative flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-pointer transition-all",
+              currentSession?.id === session.id 
+                ? "bg-primary/10 text-primary" 
+                : "opacity-40 hover:bg-muted/50 hover:opacity-100"
+            )}
+            onClick={() => onSelectSession(session)}
+          >
+            <MessageSquare size={16} className="shrink-0 opacity-40 group-hover:opacity-100" />
+            
+            {editingId === session.id ? (
+              <input
+                autoFocus
+                value={editTitle}
+                onChange={(e) => setEditTitle(e.target.value)}
+                onBlur={() => submitRename(session.id)}
+                onKeyDown={(e) => e.key === 'Enter' && submitRename(session.id)}
+                className="flex-1 bg-transparent border-none outline-none text-xs text-white"
+              />
+            ) : (
+              <span className="flex-1 text-xs truncate font-medium">
+                {session.title}
+              </span>
+            )}
+
+            {/* 3-Dot Menu */}
+            <div className="relative flex items-center">
+              <button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setOpenMenuId(openMenuId === session.id ? null : session.id)
+                }}
+                className="p-1 rounded hover:bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity"
+              >
+                <MoreVertical size={14} />
+              </button>
+
+              {openMenuId === session.id && (
+                <div 
+                  className="absolute right-0 top-6 z-50 w-32 py-1 rounded-xl shadow-xl border animate-in fade-in zoom-in-95 duration-200"
+                  style={{ backgroundColor: 'var(--color-popover)', borderColor: 'var(--color-border)' }}
+                >
+                  <button
+                    onClick={(e) => { e.stopPropagation(); handleRename(session.id, session.title); }}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-[10px] font-bold hover:bg-muted/50 transition-colors"
+                  >
+                    <Edit2 size={12} /> Rename
+                  </button>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); onDeleteSession(session.id); setOpenMenuId(null); }}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-[10px] font-bold text-red-500 hover:bg-red-500/10 transition-colors"
+                  >
+                    <Trash2 size={12} /> Delete
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Footer */}
+      <div className="p-3 border-t mt-auto" style={{ borderColor: 'var(--color-border)' }}>
+        <div className="px-2 mb-4">
+          <div className="p-3 rounded-2xl border bg-muted/30 flex flex-col gap-3" style={{ borderColor: 'var(--color-border)' }}>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Cpu size={14} className="opacity-30" />
+                <span className="text-[10px] font-black opacity-40 uppercase tracking-widest">Tokens</span>
+              </div>
+              <span className="text-xs font-black">
+                {credits !== null ? (credits >= 1000000 ? `${(credits / 1000000).toFixed(1)}M` : `${(credits / 1000).toFixed(0)}k`) : '0'}
+              </span>
+            </div>
+            <button 
+              onClick={onOpenUpgrade}
+              className="w-full h-8 rounded-xl bg-primary text-primary-foreground text-[10px] font-black flex items-center justify-center gap-2 hover:opacity-90 transition-all active:scale-95 uppercase tracking-tighter"
+            >
+              <Zap size={10} fill="currentColor" />
+              Top Up
+            </button>
+          </div>
+        </div>
         <ProfileButton onOpenSettings={onOpenSettings} />
       </div>
     </div>

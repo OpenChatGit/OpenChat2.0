@@ -49,44 +49,13 @@ export interface WebSearchSettings {
 
 const DEFAULT_SETTINGS: WebSearchSettings = {
   enabled: true,
-  defaultProvider: 'free',
-  autoFallback: true,
+  defaultProvider: 'supabase',
+  autoFallback: false,
   smartSelection: false,
   providers: {
-    free: {
+    supabase: {
       enabled: true,
       config: {}
-    },
-    'shared-serper': {
-      enabled: false, // Disabled by default (requires valid shared API key)
-      config: {}
-    },
-    serper: {
-      enabled: false,
-      config: {},
-      usage: {
-        count: 0,
-        limit: 5000,
-        resetAt: new Date(new Date().getFullYear(), new Date().getMonth() + 1, 1).toISOString()
-      }
-    },
-    google: {
-      enabled: false,
-      config: {},
-      usage: {
-        count: 0,
-        limit: 100,
-        resetAt: new Date(new Date().setHours(24, 0, 0, 0)).toISOString()
-      }
-    },
-    brave: {
-      enabled: false,
-      config: {},
-      usage: {
-        count: 0,
-        limit: 2000,
-        resetAt: new Date(new Date().getFullYear(), new Date().getMonth() + 1, 1).toISOString()
-      }
     }
   },
   options: {
@@ -120,6 +89,12 @@ export class ProviderSettingsManager {
       const stored = localStorage.getItem(this.STORAGE_KEY);
       if (stored) {
         const parsed = JSON.parse(stored);
+        // Force migration to supabase
+        parsed.defaultProvider = 'supabase';
+        if (!parsed.providers?.supabase) {
+          parsed.providers = { ...parsed.providers, supabase: DEFAULT_SETTINGS.providers.supabase };
+        }
+        
         // Migrate old settings
         const migrated = this.migrateSettings(parsed);
         // Merge with defaults to handle new settings
@@ -136,44 +111,11 @@ export class ProviderSettingsManager {
    * Migrate old settings to new format
    */
   private migrateSettings(settings: any): any {
-    let migrated = false;
-
-    // Migrate serpapi → serper
-    if (settings.providers?.serpapi) {
-      console.log('[ProviderSettings] Migrating serpapi → serper');
-      settings.providers.serper = settings.providers.serpapi;
-      delete settings.providers.serpapi;
-      migrated = true;
-    }
-
-    // Update defaultProvider if it was serpapi
-    if (settings.defaultProvider === 'serpapi') {
-      console.log('[ProviderSettings] Migrating defaultProvider: serpapi → serper');
-      settings.defaultProvider = 'serper';
-      migrated = true;
-    }
-
-    // Clean up any remaining serpapi references
-    if (settings.providers) {
-      const providerKeys = Object.keys(settings.providers);
-      for (const key of providerKeys) {
-        if (key === 'serpapi') {
-          delete settings.providers[key];
-          migrated = true;
-        }
-      }
-    }
-
-    if (migrated) {
-      console.log('[ProviderSettings] Migration complete, saving...');
-      // Save migrated settings immediately
-      try {
-        localStorage.setItem(this.STORAGE_KEY, JSON.stringify(settings));
-      } catch (error) {
-        console.error('[ProviderSettings] Failed to save migrated settings:', error);
-      }
-    }
-
+    // Force supabase as only provider
+    settings.defaultProvider = 'supabase';
+    settings.providers = {
+      supabase: settings.providers?.supabase || DEFAULT_SETTINGS.providers.supabase
+    };
     return settings;
   }
 
@@ -185,8 +127,7 @@ export class ProviderSettingsManager {
       ...DEFAULT_SETTINGS,
       ...loaded,
       providers: {
-        ...DEFAULT_SETTINGS.providers,
-        ...loaded.providers
+        supabase: loaded.providers?.supabase || DEFAULT_SETTINGS.providers.supabase
       },
       options: {
         ...DEFAULT_SETTINGS.options,
@@ -211,8 +152,8 @@ export class ProviderSettingsManager {
    * Initialize providers in registry based on settings
    */
   private initializeProviders(): void {
-    // Valid provider types
-    const validProviders: ProviderType[] = ['free', 'shared-serper', 'serper', 'google', 'brave'];
+    // Only supabase is valid now
+    const validProviders: ProviderType[] = ['supabase'];
     
     // Register ALL providers (enabled or not) so they can be displayed in UI
     for (const [type, settings] of Object.entries(this.settings.providers)) {
@@ -331,23 +272,10 @@ export class ProviderSettingsManager {
   /**
    * Get next reset date for provider
    */
-  private getNextResetDate(type: ProviderType): Date {
+  private getNextResetDate(_type: ProviderType): Date {
     const now = new Date();
-
-    switch (type) {
-      case 'google':
-        // Daily reset
-        return new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
-
-      case 'shared-serper':
-      case 'serper':
-      case 'brave':
-        // Monthly reset
-        return new Date(now.getFullYear(), now.getMonth() + 1, 1);
-
-      default:
-        return new Date(now.getFullYear(), now.getMonth() + 1, 1);
-    }
+    // Default to monthly reset for premium search
+    return new Date(now.getFullYear(), now.getMonth() + 1, 1);
   }
 
   /**

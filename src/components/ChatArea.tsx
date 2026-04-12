@@ -11,17 +11,10 @@ interface ChatAreaProps {
   onSendMessageWithNewChat: (content: string, images?: ImageAttachment[]) => void
   onRegenerateMessage?: (messageId: string) => void
   onStop?: () => void
-  providers: ProviderConfig[]
-  selectedProvider: ProviderConfig | null
-  selectedModel: string
-  models: ModelInfo[]
-  onSelectProvider: (provider: ProviderConfig) => void
-  onSelectModel: (model: string) => void
-  onLoadModels: (provider: ProviderConfig) => void
-  isLoadingModels?: boolean
   autoSearchEnabled?: boolean
   onToggleAutoSearch?: () => void
   getSourceRegistry: () => SourceRegistry
+  registryVersion?: number
 }
 
 export function ChatArea({ 
@@ -31,25 +24,22 @@ export function ChatArea({
   onSendMessageWithNewChat,
   onRegenerateMessage,
   onStop,
-  providers,
-  selectedProvider,
-  selectedModel,
-  models,
-  onSelectProvider,
-  onSelectModel,
-  onLoadModels,
-  isLoadingModels = false,
   autoSearchEnabled = false,
   onToggleAutoSearch = () => {},
-  getSourceRegistry
+  getSourceRegistry,
+  registryVersion = 0
 }: ChatAreaProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const [modelCapabilities, setModelCapabilities] = useState<ModelInfo['capabilities']>()
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [session?.messages])
+    if (isGenerating) {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'auto' })
+    } else {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+    }
+  }, [session?.messages, isGenerating])
 
   // Show centered input only when no session exists
   const showCenteredInput = !session
@@ -69,25 +59,21 @@ export function ChatArea({
             disabled={isGenerating}
             isGenerating={isGenerating}
             centered={true}
-            providers={providers}
-            selectedProvider={selectedProvider}
-            selectedModel={selectedModel}
-            models={models}
-            onSelectProvider={onSelectProvider}
-            onSelectModel={onSelectModel}
-            onLoadModels={onLoadModels}
             autoSearchEnabled={autoSearchEnabled}
             onToggleAutoSearch={onToggleAutoSearch}
             modelCapabilities={modelCapabilities}
             onCapabilitiesChange={setModelCapabilities}
           />
+          <p className="text-[11.5px] text-gray-500 text-center mt-2 max-w-md mx-auto leading-relaxed px-4 opacity-80">
+            OpenChat 2.0 Web Search is currently in development. AI can make mistakes. <br/> Always cross-check important information for accuracy.
+          </p>
         </div>
       </div>
     )
   }
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full relative">
       {/* Messages */}
       <div className="flex-1 overflow-y-auto relative">
 
@@ -109,6 +95,7 @@ export function ChatArea({
                       message={message} 
                       previousMessage={previousMessage}
                       sourceRegistry={getSourceRegistry()}
+                      registryVersion={registryVersion}
                       onRegenerateMessage={onRegenerateMessage}
                       isGenerating={isGenerating}
                     />
@@ -121,25 +108,24 @@ export function ChatArea({
         )}
       </div>
 
-      {/* Input */}
-        <ChatInput
-        onSend={onSendMessage}
-        onStop={onStop}
-        disabled={isGenerating}
-        isGenerating={isGenerating}
-        providers={providers}
-        selectedProvider={selectedProvider}
-        selectedModel={selectedModel}
-        models={models}
-        onSelectProvider={onSelectProvider}
-        onSelectModel={onSelectModel}
-        onLoadModels={onLoadModels}
-        isLoadingModels={isLoadingModels}
-        autoSearchEnabled={autoSearchEnabled}
-        onToggleAutoSearch={onToggleAutoSearch}
-        modelCapabilities={modelCapabilities}
-        onCapabilitiesChange={setModelCapabilities}
-      />
+      {/* Input Container */}
+      <div className="w-full flex flex-col items-center">
+        <div className="w-full max-w-3xl px-4 pt-2 pb-1">
+          <ChatInput
+            onSend={onSendMessage}
+            onStop={onStop}
+            disabled={isGenerating}
+            isGenerating={isGenerating}
+            autoSearchEnabled={autoSearchEnabled}
+            onToggleAutoSearch={onToggleAutoSearch}
+            modelCapabilities={modelCapabilities}
+            onCapabilitiesChange={setModelCapabilities}
+          />
+          <p className="text-[11.5px] text-gray-500/80 text-center mt-1 mb-0.5 max-w-md mx-auto leading-relaxed">
+            Web Search is in experimental phase. AI can make mistakes. Cross-check facts.
+          </p>
+        </div>
+      </div>
     </div>
   )
 }

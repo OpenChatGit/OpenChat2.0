@@ -2,12 +2,12 @@
 
 # OpenChat
 
-![Version](https://img.shields.io/badge/version-0.6.0--refactored-blue)
+![Version](https://img.shields.io/badge/version-0.7.1-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey)
 ![Free Forever](https://img.shields.io/badge/free-forever-brightgreen)
 
-OpenChat is a modern, modular LLM chat application featuring a Next-Gen FastAPI Python backend and a React/TypeScript frontend. It connects seamlessly to local AI providers like Ollama and Cloud solutions like Hugging Face Serverless endpoints, with integrated CUDA support and Hugging Face training capabilities.
+OpenChat is a modern, modular LLM chat application featuring a Next-Gen FastAPI Python backend and a React/TypeScript frontend. It connects seamlessly to local AI providers like Ollama and Cloud solutions with integrated CUDA support.
 
 > � ***MAJOR UPDATE - Complete Architecture Overhaul:** This version of OpenChat has been completely rebuilt from the ground up with a modern, modular architecture. The codebase has been significantly refactored for better performance, maintainability, and user experience. Some legacy features have been removed or streamlined as they were no longer necessary with the new architecture. If you're upgrading from an older version, please note that this is essentially a new application with improved design patterns and enhanced capabilities.
 
@@ -15,7 +15,9 @@ OpenChat is a modern, modular LLM chat application featuring a Next-Gen FastAPI 
 
 > ⚖️ **Copyright Notice:** This project is protected under German copyright law (Urheberrecht). While OpenChat is free and open source under the MIT License, all rights to the original work remain with the author. The MIT License grants you permission to use, modify, and distribute this software, but does not transfer copyright ownership.
 
-> ⚠️ **Development Notice:** This refactored version represents a significant evolution of OpenChat. While thoroughly tested, some edge cases may still need refinement. Please report any issues you encounter to help us improve the application.
+> ⚠️ **Development Notice:** This refactored version represents a significant evolution of OpenChat. As I've learned a lot since I first started this project, I'm currently in the process of auditing and refactoring parts of the codebase where I previously "coded a bit of nonsense hehe". This version is focused on cleaning up that old complexity and building a much more professional, high-performance foundation.
+
+> 🛠️ **Under Construction:** While thoroughly tested, some edge cases may still need refinement as we continue to overhaul the legacy parts of the application. Please report any issues you encounter to help us improve.
 
 ## Table of Contents
 
@@ -27,8 +29,6 @@ OpenChat is a modern, modular LLM chat application featuring a Next-Gen FastAPI 
 - [Vision Support](#vision-support)
 - [Web Search System](#web-search-system)
 - [CUDA Support](#cuda-support)
-- [Hugging Face Integration](#hugging-face-integration)
-- [Canvas Mode](#canvas-mode)
 - [Architecture](#architecture)
 - [Adding a New Provider](#adding-a-new-provider)
 - [Configuration](#configuration)
@@ -40,27 +40,19 @@ OpenChat is a modern, modular LLM chat application featuring a Next-Gen FastAPI 
 
 ## What's New
 
-### Version 0.6.0 - Complete Architecture Overhaul 🚀
+### Version 0.3.1 - Refined Architecture & Performance 🚀
 
-OpenChat has been completely rebuilt from the ground up with a modern, modular architecture and powerful new features!
+OpenChat has been streamlined for a faster, more focused experience. We've optimized the core chat and web search systems to provide a clean and robust local AI application.
 
+**🏗️ Refined Architecture:**
+- **Streamlined Experience** – Removed Canvas and complex tool systems for better performance and reliability.
+- **Optimized Chat Core** – Focused on pure chat with improved streaming and session management.
+- **Enhanced Web Search** – Further refinements to the free web search system with better citations.
 
-**🏗️ Modern Architecture:**
-- **Modular Hook System** – Clean separation of concerns with dedicated hooks:
-  - `useChatWithTools` – Main chat with web search and tool support
-- **Optimized Performance** – Lazy loading, debounced updates, and efficient re-rendering
-
-**🔧 Enhanced Features:**
-- **CUDA Detection & Monitoring** – Automatic NVIDIA GPU detection with detailed information
-- **Hugging Face Integration** – Seamless authentication and Trainer API access
-- **Free Web Search** – 100% free web search with intelligent auto-detection and citations
-- **Vision Support** – Send images to vision-capable models with automatic processing
-- **Streamlined Providers** – Focus on local providers (Ollama) for privacy
-
-**🎯 Developer Experience:**
-- **Clean Codebase** – App.tsx reduced by ~150 lines through modular architecture
-- **No TypeScript Errors** – Fully typed with proper interfaces and type guards
-- **Easier Maintenance** – Each feature has its own dedicated module
+**🔧 Core Features:**
+- **CUDA Detection** – Automatic NVIDIA GPU detection with detailed monitoring.
+- **Free Web Search** – 100% free web search with intelligent auto-detection.
+- **Vision Support** – Send images to vision-capable models with automatic processing.
 
 See the full [CHANGELOG.md](CHANGELOG.md) for detailed release notes.
 
@@ -95,7 +87,7 @@ The removed features were either:
 - All your local chat sessions
 - Provider configurations (Ollama)
 - Settings and preferences
-- CUDA and Hugging Face configurations
+- CUDA configurations
 
 - Enhanced backend speeds via FastAPI python core
 - Improved memory management and API request efficiency
@@ -124,7 +116,10 @@ The removed features were either:
 - **Syntax Highlighting** – Persistent Prism.js highlighting across navigation and reloads
 
 ### 💎 Support & Subscription Plans (Upcoming)
-OpenChat is fundamentally **100% Free** and fully featured for local AI usage. The subscription tiers seen in the interface are **not yet active**. Once available, they will primarily serve as a way to **donate** and support development.
+OpenChat is fundamentally **100% Free** and fully featured for local AI usage. The subscription tiers seen in the interface are **not yet active**. Once available, they will primarily serve as a way to **donate** and support development. 
+
+> [!NOTE]
+> The current prices shown in the modal are **placeholders (mocks)** for testing purposes. Final pricing will be determined later and will be designed to be as affordable as possible to cover only necessary costs without being overpriced.
 
 - **Free Forever** – Unlimited local AI models and standard features (100% free).
 - **Development Support** – Future plans will act as an optional way to support the author.
@@ -154,18 +149,13 @@ OpenChat is fundamentally **100% Free** and fully featured for local AI usage. T
 - **Installation Guides** – Direct links to NVIDIA driver and CUDA toolkit downloads
 - **Settings Integration** – Dedicated CUDA tab with comprehensive details
 
-### 🤗 Hugging Face Integration
-- **Token Authentication** – Secure login with Hugging Face access tokens
-- **Profile Display** – Shows username and avatar after authentication
-- **Trainer API Access** – Direct integration with training capabilities
-- **API Documentation** – Built-in examples and usage guides
-- **Secure Storage** – Tokens stored securely in local storage
 
 ### 🏗️ Architecture
 - **Modular Hook System** – Clean separation with dedicated hooks for each feature
 - **Type-Safe** – Fully typed with TypeScript interfaces and type guards
 - **Event-Driven** – Real-time updates via custom events
 - **Optimized Performance** – Lazy loading, debounced updates, efficient re-rendering
+- **Modular Provider System** – Future-proof architecture designed to support a wider range of providers (including a planned modular return of Hugging Face) as independent plugins.
 - **Native Performance** – FastAPI python backend powers the native file and execution APIs
 - **Local-First** – Focus on privacy with local providers (Ollama)
 
@@ -174,7 +164,6 @@ OpenChat is fundamentally **100% Free** and fully featured for local AI usage. T
 | Provider | Default endpoint | Vision Support | Notes |
 | --- | --- | --- | --- |
 | **Ollama** | `http://localhost:11434` | ✅ Yes | Local LLM runtime and default backend. Supports vision models like Llama 3.2 Vision, LLaVA, and Bakllava. |
-| **Hugging Face** | `https://api-inference.huggingface.co` | ✅ Yes | Full integration with Hugging Face Serverless Inference APIs, allowing access to tens of thousands of cloud models with secure API Key storage. |
 
 ## Getting Started
 
@@ -290,37 +279,7 @@ OpenChat includes comprehensive CUDA detection and monitoring capabilities for N
 
 ### Usage
 
-1. The CUDA status button appears automatically in the top-right corner of the interface
-2. Click the button to view detailed GPU information
-3. Access the CUDA settings tab for comprehensive details and installation guides
-4. The system automatically detects and displays all available NVIDIA GPUs
-
-## Hugging Face Integration
-
-OpenChat integrates seamlessly with Hugging Face, providing authentication and access to the Hugging Face Trainer API for model training and fine-tuning.
-
-### Key Features
-
-- **Token-Based Authentication** – Secure login using Hugging Face access tokens
-- **User Profile Display** – Shows your Hugging Face username and avatar after authentication
-- **Trainer API Access** – Direct integration with Hugging Face training capabilities
-- **Settings Integration** – Dedicated Trainer tab in settings with API documentation and examples
-- **Secure Token Storage** – Tokens are stored securely in local storage
-
-### Usage
-
-1. Click the "Login with Hugging Face" button in the top-right corner
-2. Enter your Hugging Face access token (get one from https://huggingface.co/settings/tokens)
-3. Your profile information will be displayed after successful authentication
-4. Access the Trainer settings tab for API documentation and training examples
-5. Use the integrated API to train and fine-tune models directly from OpenChat
-
-### Getting a Hugging Face Token
-
-1. Visit https://huggingface.co/settings/tokens
-2. Create a new access token with appropriate permissions
-3. Copy the token and paste it into the login modal
-4. Keep your token secure and never share it publicly
+The system automatically detects and displays all available NVIDIA GPUs and provides status updates directly in the interface.
 
 ## Architecture
 
@@ -346,7 +305,6 @@ App.tsx (Simplified - ~150 lines smaller!)
 - `ChatArea.tsx` – Main chat interface component
 - `ChatMessage.tsx` – Message rendering with markdown and syntax highlighting
 
-**Canvas System:**
 
 **Web Search:**
 - `autoSearchManager.ts` – Search orchestration and decision making
@@ -383,7 +341,6 @@ User Input → useChatWithTools → Provider → Streaming Response → ChatMess
 **Settings:**
 - Web Search: `webSearchSettings` (localStorage)
 - CUDA: Detected via FastAPI backend
-- Hugging Face: `hf_token` (localStorage)
 
 ## Adding a New Provider
 

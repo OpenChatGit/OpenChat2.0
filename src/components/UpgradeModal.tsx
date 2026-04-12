@@ -1,228 +1,170 @@
-import { X, Check, Zap, Crown, Sparkles } from 'lucide-react'
+import { X, Check, Zap, Crown, Sparkles, Cpu } from 'lucide-react'
 import { cn } from '../lib/utils'
 
 interface UpgradeModalProps {
   isOpen: boolean
   onClose: () => void
-  currentPlan?: 'free' | 'pro' | 'pro+'
+  onPurchase?: (amount: number, tokens: number) => void
 }
 
-const plans = [
+const packages = [
   {
-    id: 'free',
-    name: 'Free',
+    id: 'starter',
+    name: 'Starter',
     icon: Sparkles,
-    price: '$0',
-    period: 'forever',
-    description: 'Everything you need to get started',
+    price: '$10',
+    tokens: '12 Million',
+    rawTokens: 12000000,
+    bonus: null,
     features: [
-      'Unlimited local AI models (Ollama, LM Studio)',
-      'Unlimited Canvas sessions',
-      'Code execution & package management',
-      'Full offline functionality',
-      'Community support',
-      'No SERP web search'
+      '12,000,000 Cloud Tokens',
+      'Claude Haiku 4.5 Support',
+      'GPT-4o mini Support',
+      'Unlimited Local Models',
+      'Standard Cloud Priority'
     ],
-    color: 'from-gray-500 to-gray-600',
-    buttonText: 'Current Plan',
     popular: false
   },
   {
     id: 'pro',
-    name: 'Pro',
+    name: 'Professional',
     icon: Zap,
-    price: '$9.99',
-    period: 'per month',
-    description: 'Enhanced web search capabilities',
+    price: '$25',
+    tokens: '35 Million',
+    rawTokens: 35000000,
+    bonus: '+2M Bonus',
     features: [
-      'Everything in Free',
-      '1,000 SERP searches/month',
-      'Advanced web search results',
-      'Search result caching',
-      'Priority support',
-      'Early access to features'
+      '35,000,000 Cloud Tokens',
+      'Claude Sonnet 4.6 Support',
+      'GPT-4o (Omni) Support',
+      'High Cloud Priority',
+      'Unlimited Local Models'
     ],
-    color: 'from-blue-500 to-blue-600',
-    buttonText: 'Upgrade to Pro',
     popular: true
   },
   {
-    id: 'pro+',
-    name: 'Pro+',
+    id: 'ultimate',
+    name: 'Ultimate',
     icon: Crown,
-    price: '$19.99',
-    period: 'per month',
-    description: 'Maximum search power',
+    price: '$50',
+    tokens: '80 Million',
+    rawTokens: 80000000,
+    bonus: '+10M Bonus',
     features: [
-      'Everything in Pro',
-      '3,000 SERP searches/month',
-      'Unlimited search result storage',
-      'API access for integrations',
-      'Dedicated support',
-      'Custom search configurations',
-      'Team collaboration features'
+      '80,000,000 Cloud Tokens',
+      'Claude Opus 4.6 Support',
+      'Advanced Reasoning Access',
+      'Highest Cloud Priority',
+      'Dedicated Cloud Instance'
     ],
-    color: 'from-purple-500 to-pink-500',
-    buttonText: 'Upgrade to Pro+',
     popular: false
   }
 ]
 
-export function UpgradeModal({ isOpen, onClose, currentPlan = 'free' }: UpgradeModalProps) {
+export function UpgradeModal({ isOpen, onClose, onPurchase }: UpgradeModalProps) {
   if (!isOpen) return null
 
-  const handleUpgrade = (planId: string) => {
-    // TODO: Implement upgrade logic
-    console.log('Upgrading to:', planId)
-    // For now, just close the modal
-    onClose()
-  }
-
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
       {/* Backdrop */}
       <div 
-        className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+        className="absolute inset-0 bg-black/80 backdrop-blur-md animate-in fade-in duration-200"
         onClick={onClose}
       />
       
       {/* Modal */}
       <div 
-        className="relative w-full max-w-6xl max-h-[90vh] overflow-y-auto rounded-2xl shadow-2xl"
+        className="relative w-full max-w-5xl max-h-[95vh] overflow-hidden rounded-3xl shadow-2xl border animate-in zoom-in-95 duration-200"
         style={{ 
-          backgroundColor: 'var(--color-sidebar)',
-          border: '1px solid var(--color-dropdown-border)'
+          backgroundColor: 'var(--color-popover)',
+          borderColor: 'var(--color-border)'
         }}
       >
         {/* Header */}
-        <div className="sticky top-0 z-10 px-6 py-4 border-b backdrop-blur-sm" 
-          style={{ 
-            backgroundColor: 'var(--color-sidebar)',
-            borderColor: 'var(--color-dropdown-border)' 
-          }}
-        >
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-2xl font-bold">Upgrade Your Plan</h2>
-              <p className="text-sm text-muted-foreground mt-1">
-                Choose the perfect plan for your needs
-              </p>
-            </div>
-            <button
-              onClick={onClose}
-              className="p-2 rounded-lg hover:bg-white/10 transition-colors"
-            >
-              <X className="w-5 h-5" />
-            </button>
+        <div className="px-8 pt-8 pb-6 flex justify-between items-center border-b border-white/5" style={{ backgroundColor: 'rgba(255, 255, 255, 0.02)' }}>
+          <div>
+            <h2 className="text-2xl font-bold tracking-tight text-foreground">Cloud Tokens</h2>
+            <p className="opacity-40 text-[10px] font-black uppercase tracking-[0.2em] mt-1 text-foreground">Acquire compute power for frontier models</p>
           </div>
+          <button onClick={onClose} className="p-2 rounded-full hover:bg-black/5 dark:hover:bg-white/5 transition-colors">
+            <X className="w-5 h-5 opacity-40 text-foreground" />
+          </button>
         </div>
 
-        {/* Plans Grid */}
-        <div className="p-6">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {plans.map((plan) => {
-              const Icon = plan.icon
-              const isCurrentPlan = plan.id === currentPlan
+        {/* Packages Grid */}
+        <div className="p-8 overflow-y-auto">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-stretch">
+            {packages.map((pkg) => {
+              const Icon = pkg.icon
               
               return (
                 <div
-                  key={plan.id}
+                  key={pkg.id}
                   className={cn(
-                    'relative rounded-xl p-6 border-2 transition-all duration-300',
-                    'hover:scale-105 hover:shadow-xl',
-                    plan.popular 
-                      ? 'border-primary shadow-lg' 
-                      : 'border-transparent',
-                    isCurrentPlan && 'opacity-75'
+                    'flex flex-col h-full rounded-2xl p-6 border transition-all duration-300',
+                    pkg.popular 
+                      ? 'bg-primary/5 border-primary/20' 
+                      : 'bg-muted/30 border-border/50'
                   )}
-                  style={{
-                    backgroundColor: 'var(--color-background)',
-                    borderColor: plan.popular ? 'var(--color-primary)' : 'var(--color-dropdown-border)'
-                  }}
                 >
-                  {/* Popular Badge */}
-                  {plan.popular && (
-                    <div className="absolute -top-3 left-1/2 -translate-x-1/2">
-                      <div className="px-3 py-1 rounded-full text-xs font-semibold bg-primary text-primary-foreground">
-                        Most Popular
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Icon */}
-                  <div className="flex justify-center mb-4">
-                    <div 
-                      className={cn(
-                        'w-16 h-16 rounded-2xl flex items-center justify-center',
-                        'bg-gradient-to-br',
-                        plan.color
+                  <div className="flex justify-between items-start mb-6">
+                    <div>
+                      <h3 className="text-lg font-bold leading-none text-foreground">{pkg.name}</h3>
+                      {pkg.bonus && (
+                        <span className="text-[9px] font-black bg-primary/10 text-primary px-1.5 py-0.5 rounded mt-2 inline-block">
+                          {pkg.bonus}
+                        </span>
                       )}
-                    >
-                      <Icon className="w-8 h-8 text-white" />
+                    </div>
+                    <div className="w-10 h-10 rounded-xl bg-primary/5 border border-primary/10 flex items-center justify-center">
+                      <Icon className="w-5 h-5 opacity-60 text-foreground" />
                     </div>
                   </div>
 
-                  {/* Plan Name */}
-                  <h3 className="text-2xl font-bold text-center mb-2">
-                    {plan.name}
-                  </h3>
-
-                  {/* Price */}
-                  <div className="text-center mb-4">
-                    <div className="flex items-baseline justify-center gap-1">
-                      <span className="text-4xl font-bold">{plan.price}</span>
-                      <span className="text-sm text-muted-foreground">/{plan.period}</span>
+                  <div className="mb-8">
+                    <div className="flex items-baseline gap-1">
+                      <span className="text-3xl font-bold text-foreground">{pkg.price}</span>
+                    </div>
+                    <div className="flex items-center gap-2 mt-2">
+                       <Cpu className="w-3 h-3 opacity-30 text-foreground" />
+                       <span className="text-[12px] font-black opacity-80 text-foreground">
+                         {pkg.tokens} Tokens
+                       </span>
                     </div>
                   </div>
 
-                  {/* Description */}
-                  <p className="text-sm text-muted-foreground text-center mb-6">
-                    {plan.description}
-                  </p>
-
-                  {/* Features */}
-                  <ul className="space-y-3 mb-6">
-                    {plan.features.map((feature, index) => (
-                      <li key={index} className="flex items-start gap-2">
-                        <Check className="w-5 h-5 text-green-500 flex-shrink-0 mt-0.5" />
-                        <span className="text-sm">{feature}</span>
-                      </li>
+                  <div className="flex-1 space-y-3 mb-10">
+                    {pkg.features.map((feature, index) => (
+                      <div key={index} className="flex items-center gap-2.5">
+                        <Check className="w-3.5 h-3.5 opacity-30 shrink-0 text-foreground" />
+                        <span className="text-[12px] font-medium opacity-50 text-foreground">{feature}</span>
+                      </div>
                     ))}
-                  </ul>
+                  </div>
 
-                  {/* Button */}
                   <button
-                    onClick={() => handleUpgrade(plan.id)}
-                    disabled={isCurrentPlan}
+                    onClick={() => onPurchase?.(parseInt(pkg.price.replace('$', '')), pkg.rawTokens)}
                     className={cn(
-                      'w-full py-3 px-4 rounded-lg font-semibold transition-all duration-200',
-                      'disabled:opacity-50 disabled:cursor-not-allowed',
-                      plan.popular
+                      'w-full py-4 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all duration-200',
+                      pkg.popular
                         ? 'bg-primary text-primary-foreground hover:opacity-90 shadow-lg'
-                        : 'bg-white/10 hover:bg-white/20'
+                        : 'bg-secondary text-secondary-foreground border border-border hover:bg-secondary/80'
                     )}
                   >
-                    {isCurrentPlan ? 'Current Plan' : plan.buttonText}
+                    Get Tokens
                   </button>
                 </div>
               )
             })}
           </div>
 
-          {/* Footer Note */}
-          <div className="mt-8 text-center">
-            <div className="inline-block px-4 py-2 rounded-lg mb-4" style={{ backgroundColor: 'var(--color-background)' }}>
-              <p className="text-sm font-semibold text-green-400">
-                ✨ Local AI models are always 100% free and unlimited
-              </p>
-              <p className="text-xs text-muted-foreground mt-1">
-                Subscriptions only unlock SERP web search API access
-              </p>
+          <div className="mt-8 pt-6 border-t border-border/40 flex justify-between items-center opacity-30">
+            <div className="flex items-center gap-4">
+              <span className="text-[9px] font-bold uppercase tracking-widest text-foreground">Global Compute</span>
+              <div className="w-1 h-1 rounded-full bg-current opacity-20" />
+              <span className="text-[9px] font-bold uppercase tracking-widest text-foreground">No Expiration</span>
             </div>
-            <div className="text-sm text-muted-foreground">
-              <p>All plans include a 14-day money-back guarantee</p>
-              <p className="mt-1">Cancel anytime, no questions asked</p>
-            </div>
+            <p className="text-[10px] font-medium italic text-foreground">1 Token ≈ 1 Request Unit (Lite)</p>
           </div>
         </div>
       </div>

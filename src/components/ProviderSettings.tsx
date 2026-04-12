@@ -223,44 +223,9 @@ export function ProviderSettings({
           />
           <p className="text-xs text-muted-foreground mt-1">
             {provider.type === 'ollama' && 'Default: http://localhost:11434'}
-            {provider.type === 'huggingface' && 'Default: https://api-inference.huggingface.co/v1'}
           </p>
         </div>
 
-        {provider.type === 'huggingface' && (
-          <div>
-            <label className="text-sm font-medium mb-2 block">
-              API Key
-              <span className="text-xs text-muted-foreground ml-2">
-                (stored securely, never exposed)
-              </span>
-            </label>
-            <div className="flex gap-2">
-              <Input
-                type="password"
-                value={editedProvider.apiKey || ''}
-                onChange={(e) => handleChange({ apiKey: e.target.value })}
-                placeholder="sk-..."
-                className="flex-1"
-              />
-              {editedProvider.apiKey && (
-                <Button
-                  type="button"
-                  variant="secondary"
-                  onClick={() => handleChange({ apiKey: '' })}
-                  title="Clear API Key"
-                >
-                  Clear
-                </Button>
-              )}
-            </div>
-            {editedProvider.apiKey && (
-              <p className="text-xs text-muted-foreground mt-1">
-                API Key is set. Clear and save to remove from system.
-              </p>
-            )}
-          </div>
-        )}
       </div>
 
       {/* Action Buttons */}
@@ -329,7 +294,6 @@ export function ProviderSettings({
               <p className="mb-2">No models available</p>
               <p className="text-xs">
                 {provider.type === 'ollama' && 'Make sure Ollama is running and has models installed'}
-                {provider.type === 'huggingface' && 'Make sure Hugging Face is running with a model loaded'}
               </p>
             </div>
           ) : (
@@ -362,41 +326,6 @@ export function ProviderSettings({
           )}
         </div>
 
-        {provider.type === 'huggingface' && (
-          <div className="mt-4 pt-4 border-t border-border">
-            <label className="text-sm font-medium mb-2 block">
-              Add Custom Model ID (Hugging Face)
-            </label>
-            <div className="flex gap-2">
-              <Input
-                value={customModelId}
-                onChange={(e) => setCustomModelId(e.target.value)}
-                placeholder="meta-llama/Llama-2-7b-chat-hf"
-                className="flex-1"
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && customModelId.trim()) {
-                    onSelectModel(customModelId.trim())
-                    setCustomModelId('')
-                  }
-                }}
-              />
-              <Button
-                type="button"
-                variant="secondary"
-                disabled={!customModelId.trim()}
-                onClick={() => {
-                  onSelectModel(customModelId.trim())
-                  setCustomModelId('')
-                }}
-              >
-                Use Model
-              </Button>
-            </div>
-            <p className="text-xs text-muted-foreground mt-1">
-              For Hugging Face, you can directly type the repository ID of any supported model from the hub (e.g. <code>mistralai/Mistral-7B-Instruct-v0.2</code>).
-            </p>
-          </div>
-        )}
       </div>
 
       {/* Additional Info */}
@@ -441,24 +370,6 @@ export function ProviderSettings({
                   The app will then be accessible at <code className="bg-muted px-1 rounded">http://localhost:11434</code>
                 </p>
               </div>
-            </div>
-          )}
-          {provider.type === 'huggingface' && (
-            <div className="mt-3 pt-3 border-t border-border">
-              <p className="text-xs font-semibold mb-1">
-                Hugging Face API Token Required
-              </p>
-              <p className="text-xs text-muted-foreground mb-1">
-                You must provide an API Key (Access Token) from your Hugging Face account to use their Serverless Inference API.
-              </p>
-              <a 
-                href="https://huggingface.co/settings/tokens" 
-                target="_blank" 
-                rel="noreferrer"
-                className="text-xs text-blue-500 hover:underline"
-              >
-                Get your token here &rarr;
-              </a>
             </div>
           )}
         </div>

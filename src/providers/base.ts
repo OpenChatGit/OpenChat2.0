@@ -13,9 +13,9 @@ export abstract class BaseProvider {
   
   abstract sendMessage(
     request: ChatCompletionRequest,
-    onChunk?: (content: string) => void,
+    onChunk?: (content: string, toolCalls?: any[]) => void,
     signal?: AbortSignal
-  ): Promise<string>
+  ): Promise<string | any[]>
 
   abstract testConnection(timeout?: number): Promise<boolean>
 

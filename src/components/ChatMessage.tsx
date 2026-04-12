@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, memo } from 'react'
 import type { Message, ImageAttachment } from '../types'
-import { ReasoningBlock } from './ReasoningBlock'
+import { LLMResponse } from './chat/LLMResponse'
 import { TokenUsageDropdown } from './TokenUsageDropdown'
 import { MarkdownRenderer } from './MarkdownRenderer'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
@@ -11,44 +11,28 @@ import refreshIcon from '../assets/refresh.svg'
 import { CitationParser } from '../lib/citations/citationParser'
 import type { SourceRegistry } from '../lib/web-search/sourceRegistry'
 import '../styles/markdown.css'
-import '../styles/prism-custom.css'
 
 interface ChatMessageProps {
   message: Message
   previousMessage?: Message // To access autoSearch metadata from previous user message
   sourceRegistry?: SourceRegistry // Optional: For rendering citations
+  registryVersion?: number // For triggering re-renders when registry updates
   onRegenerateMessage?: (messageId: string) => void
   isGenerating?: boolean
 }
 
-export function ChatMessage({ message, previousMessage, sourceRegistry, onRegenerateMessage, isGenerating = false }: ChatMessageProps) {
+export const ChatMessage = memo(({ message, previousMessage, sourceRegistry, registryVersion: _registryVersion = 0, onRegenerateMessage, isGenerating = false }: ChatMessageProps) => {
   const isUser = message.role === 'user'
   const [isCopied, setIsCopied] = useState(false)
   const [lightboxImage, setLightboxImage] = useState<ImageAttachment | null>(null)
   const [imageLoadStates, setImageLoadStates] = useState<Record<string, 'loading' | 'loaded' | 'error'>>({})
   const [isTokenDropdownOpen, setIsTokenDropdownOpen] = useState(false)
-  
-  // Debounce content rendering during streaming
-  const [debouncedContent, setDebouncedContent] = useState(message.content)
-  
-  useEffect(() => {
-    // If streaming, debounce updates by 150ms
-    if (message.isStreaming) {
-      const timer = setTimeout(() => {
-        setDebouncedContent(message.content)
-      }, 150)
-      
-      return () => clearTimeout(timer)
-    } else {
-      // If not streaming, update immediately
-      setDebouncedContent(message.content)
-    }
-  }, [message.content, message.isStreaming])
 
-  // Use debounced content during streaming, actual content when complete
-  const contentToRender = message.isStreaming ? debouncedContent : message.content
+  // Use direct content
+  const contentToRender = message.content
   
   // Parse reasoning blocks from AI messages
+  // ... (keep parseReasoning if needed, but it's largely superseded by LLMResponse)
   const parseReasoning = (content: string) => {
     // Normalize alternative reasoning markers to <think> tags for a single parser path
     let text = content
@@ -305,6 +289,10 @@ export function ChatMessage({ message, previousMessage, sourceRegistry, onRegene
     )
   }
 
+  if (message.role === 'tool' || message.isHidden) {
+    return null;
+  }
+
   if (isUser) {
     // User message - right aligned with gray bubble
     return (
@@ -348,57 +336,34 @@ export function ChatMessage({ message, previousMessage, sourceRegistry, onRegene
 
   // AI message - left aligned, plain text, full width
   // Reduced top padding to bring it closer to web search indicator
-  const hasAutoSearch = previousMessage?.metadata?.autoSearch?.triggered
-  const searchSources = previousMessage?.metadata?.autoSearch?.sources || []
-  const hasCompletedSearch = hasAutoSearch && searchSources.length > 0
+  // 1. Check if this is an AI message that should have search results
+  const hasToolCall = message.toolCalls && message.toolCalls.length > 0
+  const isCompletedSearch = message.status === 'completed'
+  const isSearching = message.status === 'searching'
+  const showsSearchHeader = hasToolCall || isCompletedSearch || isSearching
+  
+  // 2. Resolve sources for the UI (favicons)
+  // Priority A: Specifically extracted sources in message metadata
+  // Priority B: Inherited from previous user message (classic auto-search)
+  // Priority C: Latest sources from the registry (fallback)
+  let searchSources = message.metadata?.autoSearch?.sources || previousMessage?.metadata?.autoSearch?.sources || []
+  
+  // FALLBACK: If we know a search happened but have no specific icons, show the latest ones from the registry
+  if (searchSources.length === 0 && showsSearchHeader && sourceRegistry) {
+    // Get the most recently added sources (last 5)
+    searchSources = sourceRegistry.getAllSources().slice(-5).map(s => ({
+      url: s.url,
+      title: s.title
+    }))
+  }
+
+  const hasCompletedSearch = showsSearchHeader && (searchSources.length > 0 || message.content)
   
   return (
     <>
       <div className="px-4 py-1 group">
         <div className="max-w-3xl mx-auto" style={{ minHeight: '2rem' }}>
-          {/* Searched Web Indicator - only show after search completes */}
-          {hasCompletedSearch && (
-          <div className="flex items-center gap-2 text-sm mb-1" style={{ color: 'var(--color-muted-foreground)' }}>
-            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-            </svg>
-            <span>Searched Web</span>
-            <div className="flex items-center gap-1">
-              {searchSources.slice(0, 5).map((source: any, idx: number) => {
-                const sourceId = sourceRegistry?.getSourceIdByUrl(source.url)
-                return (
-                  <button
-                    key={idx}
-                    onClick={() => {
-                      if (sourceId !== undefined) {
-                        // Dispatch event to highlight citations for this source
-                        window.dispatchEvent(new CustomEvent('highlightCitation', {
-                          detail: { sourceId }
-                        }))
-                        // Clear highlight after 3 seconds
-                        setTimeout(() => {
-                          window.dispatchEvent(new CustomEvent('highlightCitation', {
-                            detail: { sourceId: null }
-                          }))
-                        }, 3000)
-                      }
-                    }}
-                    className="hover:opacity-100 transition-opacity cursor-pointer"
-                    title={`${source.title} - Click to highlight citations`}
-                  >
-                    <img
-                      src={`https://www.google.com/s2/favicons?domain=${source.url}&sz=16`}
-                      alt={source.title}
-                      className="w-4 h-4 rounded-sm opacity-70"
-                    />
-                  </button>
-                )
-              })}
-            </div>
-          </div>
-        )}
-        
-        {/* Render images if present */}
+          {/* Render images if present */}
         {message.images && message.images.length > 0 && (
           <div className="mb-3">
             {renderImages(message.images)}
@@ -414,67 +379,17 @@ export function ChatMessage({ message, previousMessage, sourceRegistry, onRegene
                 </div>
               )
             }
-            const hasReasoningTag = contentToRender && /<(think|thinking|reasoning)>|```reasoning/i.test(contentToRender)
-            
-            // If no content yet, show "Reasoning..." indicator
-            if (!contentToRender) {
-              return (
-                <div className="flex items-center gap-2 text-sm" style={{ color: 'var(--color-muted-foreground)' }}>
-                  <div className="w-2 h-2 rounded-full animate-pulse" style={{ backgroundColor: 'var(--color-muted-foreground)' }}></div>
-                  <span>Reasoning...</span>
-                </div>
-              )
-            }
-            
-            const parts = parseReasoning(contentToRender)
-            
-            // If parsing returns empty but we have content starting with <think>, show reasoning indicator
-            if (parts.length === 0 && hasReasoningTag) {
-              return (
-                <div className="flex items-center gap-2 text-sm" style={{ color: 'var(--color-muted-foreground)' }}>
-                  <div className="w-2 h-2 rounded-full animate-pulse" style={{ backgroundColor: 'var(--color-muted-foreground)' }}></div>
-                  <span>Reasoning...</span>
-                </div>
-              )
-            }
-            
-            // If no parts and no reasoning tag, show generating
-            if (parts.length === 0) {
-              return (
-                <div className="flex items-center gap-2 text-sm" style={{ color: 'var(--color-muted-foreground)' }}>
-                  <div className="w-2 h-2 rounded-full animate-pulse" style={{ backgroundColor: 'var(--color-muted-foreground)' }}></div>
-                  <span>Generating...</span>
-                </div>
-              )
-            }
+            // Logic for tools vs reasoning vs content
+            const contentToRender = message.content || '';
             
             return (
-              <>
-                {parts.map((part, index) => {
-                  if (part.type === 'reasoning') {
-                    // Check if reasoning is complete (has closing tag)
-                    const isComplete = /<\/(think|thinking|reasoning)>|```/i.test(contentToRender)
-                    return <ReasoningBlock key={index} content={part.content} isComplete={isComplete} />
-                  }
-                  
-                  // Regular text content
-                  const textContent = part.content.trim()
-                  if (!textContent) return null
-                  
-                  return (
-                    <div 
-                      key={index} 
-                      className="text-base leading-relaxed"
-                      style={{ 
-                        color: 'var(--color-foreground)',
-                        lineHeight: '1.75'
-                      }}
-                    >
-                      {renderContentWithCitations(textContent)}
-                    </div>
-                  )
-                })}
-              </>
+              <LLMResponse 
+                content={contentToRender} 
+                isStreaming={isGenerating} 
+                sourceRegistry={sourceRegistry}
+                status={message.status}
+                sources={searchSources}
+              />
             )
           })()}
         </div>
@@ -551,4 +466,4 @@ export function ChatMessage({ message, previousMessage, sourceRegistry, onRegene
     {renderLightbox()}
   </>
   )
-}
+})

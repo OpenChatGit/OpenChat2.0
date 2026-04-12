@@ -13,11 +13,12 @@ import { SearchProviderFactory, type ProviderType } from './SearchProviderFactor
 
 export class SearchProviderRegistry {
   private providers: Map<ProviderType, SearchProvider> = new Map();
-  private defaultProvider: ProviderType = 'free';
+  private defaultProvider: ProviderType = 'supabase';
 
   constructor() {
-    // Register free provider by default
+    // Register providers
     this.registerProvider('free', SearchProviderFactory.createProvider('free'));
+    this.registerProvider('supabase', SearchProviderFactory.createProvider('supabase'));
   }
 
   /**

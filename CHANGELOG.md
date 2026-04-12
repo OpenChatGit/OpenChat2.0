@@ -7,26 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.1] - 2026-04-12
+### Changed
+- **Architectural Overhaul** – Streamlined the application to focus on core chat performance and stability.
+- **Refined Hook System** – Optimized `useChatWithTools` and provider management.
+- **Settings Reorganization** – Renamed "Settings" to "General" and moved Account settings to the top for better accessibility.
+- **API Visibility** – Updated `.env` management to track public Supabase keys for easier deployment.
+- **Prism.js Dependency Cleanup** – Resolved build errors by cleaning up orphaned CSS imports.
+
+### Removed
+- **Hugging Face Integration** – Entirely removed the Hugging Face provider, related services, and authentication logic to consolidate on OpenChat Cloud and Ollama.
+- **Trainer Module** – Removed the Hugging Face Trainer tab and all associated training logic.
+- **Canvas Mode** – Removed side-by-side editing and preview system.
+- **Multi-Language Code Execution** – Support for executing external languages has been removed to simplify the codebase.
+- **Advanced Package Management** – Language-specific dependency management (Python, JS, etc.) has been removed.
+- **Terminal Endpoints** – Removed unused backend terminal and command execution endpoints.
+
 ### Added
-- **Multi-Language Code Execution** - Comprehensive execution support for 12+ languages
-  - **Interpreted Languages**: Python (with auto package install), JavaScript, TypeScript, Ruby, PHP
-  - **Compiled Languages**: Rust (rustc), Go (go run), Java (javac), C/C++ (gcc/g++)
-  - **Preview Languages**: HTML/CSS (live preview), Markdown (rendered), JSON (validation)
-  - Automatic compilation for compiled languages with error handling
-  - Real-time output display with stdout/stderr separation
-  - Temporary file management with automatic cleanup
-  - Language-specific error messages and installation guides
-  
-- **Enhanced Package Management** - Comprehensive package control in Canvas mode
-  - Individual package uninstallation with language-specific package managers
-  - Two-action system: full uninstall (trash icon) or list removal (X icon)
-  - Improved package dropdown UI with install input and danger zone
-  - Support for 7 languages: Python (pip), JavaScript/TypeScript (npm), Ruby (gem), Rust (cargo), Go (go), PHP (composer)
-  - Clear package list function (removes from list without uninstalling)
-  - Enhanced clean environment function with detailed feedback
-  - Better error handling and user feedback
-  - Hover-based action buttons for cleaner interface
-  - Confirmation dialogs with clear explanations
+- **Pricing Transparency (Draft)** – Added a note in the README and Pricing section clarifying that current payment tiers are placeholder mocks for testing.
+- **Planned: Modular Hugging Face Support** – Hugging Face will be re-introduced in a future update as a modular plugin rather than being hard-coded into the core architecture.
 
 ## [0.6.0] - 2025-01-24
 

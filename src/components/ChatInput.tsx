@@ -2,8 +2,6 @@ import { useState, useRef, useEffect } from 'react'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { faArrowUp, faSquare } from '@fortawesome/free-solid-svg-icons'
 import { Globe, Paperclip, X, Bot } from 'lucide-react'
-import { ModelSelector } from './ModelSelector'
-import { CanvasModelSelector } from './CanvasModelSelector'
 import { cn } from '../lib/utils'
 import { ImageProcessor } from '../lib/imageProcessor'
 import { useToast } from '../hooks/useToast'
@@ -29,11 +27,6 @@ interface ChatInputProps {
   onToggleAutoSearch?: () => void
   modelCapabilities?: ModelInfo['capabilities']
   onCapabilitiesChange?: (capabilities: ModelInfo['capabilities']) => void
-  // Canvas-specific props
-  canvasMode?: boolean
-  agentModeEnabled?: boolean
-  onToggleAgentMode?: () => void
-  showToolModelSelector?: boolean
 }
 
 export function ChatInput({
@@ -44,22 +37,10 @@ export function ChatInput({
   isGenerating,
   centered = false,
   compact = false,
-  providers = [],
-  selectedProvider = null,
-  selectedModel = '',
-  models = [],
-  onSelectProvider = () => { },
-  onSelectModel = () => { },
-  onLoadModels = () => { },
-  isLoadingModels = false,
   autoSearchEnabled = false,
   onToggleAutoSearch = () => { },
   modelCapabilities,
   onCapabilitiesChange,
-  canvasMode = false,
-  agentModeEnabled = false,
-  onToggleAgentMode = () => { },
-  showToolModelSelector = false
 }: ChatInputProps) {
   // Load input and images from localStorage on mount
   const [input, setInput] = useState(() => {
@@ -312,7 +293,7 @@ export function ChatInput({
   const isVisionSupported = modelCapabilities?.vision ?? false
 
   return (
-    <div className={compact ? '' : (centered ? '' : 'pb-6 px-4')} style={{ position: 'relative', zIndex: 1 }}>
+    <div className={compact ? '' : (centered ? '' : 'px-4')} style={{ position: 'relative', zIndex: 1 }}>
       <div className={compact ? 'w-full' : (centered ? 'w-full' : 'max-w-3xl mx-auto')} style={{ position: 'relative' }}>
         {/* Screen reader announcements for upload status */}
         <div
@@ -406,30 +387,8 @@ export function ChatInput({
 
             {/* Bottom Section with Web Search Toggle, Attachment, Agent Mode, Model Selector and Send Button */}
             <div className="px-4 pb-3 flex items-center justify-between gap-2">
-              {/* Left Side: Web Search Toggle, Attachment, and Agent Mode (Canvas only) */}
+              {/* Left Side: Attachment and Web Search Toggle */}
               <div className="flex items-center gap-2">
-                {/* Web Search Toggle - Hide in canvas mode */}
-                {!canvasMode && (
-                  <button
-                    type="button"
-                    onClick={onToggleAutoSearch}
-                    className="w-8 h-8 rounded-full flex items-center justify-center transition-all flex-shrink-0 input-icon-button"
-                    style={{
-                      backgroundColor: autoSearchEnabled ? 'rgba(59, 130, 246, 0.1)' : 'transparent'
-                    }}
-                    title={autoSearchEnabled ? 'Web search enabled' : 'Web search disabled'}
-                    aria-label={autoSearchEnabled ? 'Disable web search' : 'Enable web search'}
-                  >
-                    <Globe
-                      className="w-4 h-4 transition-colors"
-                      style={{
-                        color: autoSearchEnabled ? 'rgb(59, 130, 246)' : 'var(--color-icon-muted)',
-                        strokeWidth: 2
-                      }}
-                    />
-                  </button>
-                )}
-
                 {/* Attachment Button */}
                 <button
                   type="button"
@@ -475,27 +434,25 @@ export function ChatInput({
                   />
                 </button>
 
-                {/* Agent Mode Toggle - Canvas only */}
-                {canvasMode && (
-                  <button
-                    type="button"
-                    onClick={onToggleAgentMode}
-                    className="w-8 h-8 rounded-full flex items-center justify-center transition-all flex-shrink-0 input-icon-button"
+                {/* Web Search Toggle */}
+                <button
+                  type="button"
+                  onClick={onToggleAutoSearch}
+                  className="w-8 h-8 rounded-full flex items-center justify-center transition-all flex-shrink-0 input-icon-button"
+                  style={{
+                    backgroundColor: autoSearchEnabled ? 'rgba(59, 130, 246, 0.1)' : 'transparent'
+                  }}
+                  title={autoSearchEnabled ? 'Web search enabled' : 'Web search disabled'}
+                  aria-label={autoSearchEnabled ? 'Disable web search' : 'Enable web search'}
+                >
+                  <Globe
+                    className="w-4 h-4 transition-colors"
                     style={{
-                      backgroundColor: agentModeEnabled ? 'rgba(168, 85, 247, 0.15)' : 'transparent'
+                      color: autoSearchEnabled ? 'rgb(59, 130, 246)' : 'var(--color-icon-muted)',
+                      strokeWidth: 2
                     }}
-                    title={agentModeEnabled ? 'Agent Mode active - AI can use Canvas tools' : 'Enable Agent Mode for AI tool usage'}
-                    aria-label={agentModeEnabled ? 'Disable Agent Mode' : 'Enable Agent Mode'}
-                  >
-                    <Bot
-                      className="w-4 h-4 transition-colors"
-                      style={{
-                        color: agentModeEnabled ? 'rgb(168, 85, 247)' : 'var(--color-icon-muted)',
-                        strokeWidth: 2
-                      }}
-                    />
-                  </button>
-                )}
+                  />
+                </button>
 
                 {/* Hidden File Input */}
                 <input
@@ -512,35 +469,6 @@ export function ChatInput({
 
               {/* Right Side: Model Selector and Send Button */}
               <div className="flex items-center gap-2">
-                {/* Tool Model Selector - Canvas only when agent mode is enabled */}
-                {canvasMode && agentModeEnabled && showToolModelSelector && providers.length > 0 && (
-                  <CanvasModelSelector
-                    providers={providers}
-                    selectedProvider={selectedProvider}
-                    selectedModel={selectedModel}
-                    models={models}
-                    onSelectProvider={onSelectProvider}
-                    onSelectModel={onSelectModel}
-                    onLoadModels={onLoadModels}
-                    isLoadingModels={isLoadingModels}
-                  />
-                )}
-
-                {/* Regular Model Selector - Non-canvas mode */}
-                {!canvasMode && providers.length > 0 && (
-                  <ModelSelector
-                    providers={providers}
-                    selectedProvider={selectedProvider}
-                    selectedModel={selectedModel}
-                    models={models}
-                    onSelectProvider={onSelectProvider}
-                    onSelectModel={onSelectModel}
-                    onLoadModels={onLoadModels}
-                    isLoadingModels={isLoadingModels}
-                    openUpwards={!centered}
-                    onCapabilitiesChange={onCapabilitiesChange}
-                  />
-                )}
 
                 {/* Send/Stop Button */}
                 {isGenerating ? (

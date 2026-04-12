@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { X, Settings as SettingsIcon, ChevronDown, ChevronRight, Search, Cpu, Zap } from 'lucide-react'
+import { BookOpen, X, Settings as SettingsIcon, ChevronDown, ChevronRight, Search, Cpu, Zap, User } from 'lucide-react'
 import { Button } from './ui/Button'
 import type { ProviderConfig, ModelInfo } from '../types'
 import { cn } from '../lib/utils'
@@ -9,7 +9,9 @@ import { Settings as SettingsContent } from './Settings'
 import { WebSearchSettings, type WebSearchSettings as WebSearchSettingsType } from './WebSearchSettings'
 import { ProviderSettings } from './ProviderSettings'
 import { CudaSettings } from './CudaSettings'
-import { TrainerSettings } from './TrainerSettings'
+import { AccountSettings } from './AccountSettings'
+import { DocsCloudSettings } from './DocsCloudSettings'
+import { DocsPricingSettings } from './DocsPricingSettings'
 
 interface SettingsModalProps {
   // Settings props
@@ -30,44 +32,52 @@ interface SettingsModalProps {
   onClose: () => void
 }
 
-type Tab = 'settings' | 'websearch' | 'cuda' | 'trainer' | 'provider-ollama' | 'provider-huggingface'
-type ProviderType = 'ollama' | 'huggingface'
+type Tab = 'settings' | 'websearch' | 'cuda' | 'account' | 'provider-ollama' | 'docs-cloud' | 'docs-pricing'
+type ProviderType = 'ollama'
 
 export function SettingsModal({
   providers,
-  selectedProvider: _selectedProvider,
-  models: _models,
+  selectedProvider,
+  models,
   selectedModel,
-  isLoadingModels: _isLoadingModels,
+  isLoadingModels,
   webSearchSettings,
-  onSelectProvider: _onSelectProvider,
+  onSelectProvider,
   onSelectModel,
   onUpdateProvider,
   onTestProvider,
-  onLoadModels: _onLoadModels,
+  onLoadModels,
   onUpdateWebSearchSettings,
   onClose
 }: SettingsModalProps) {
-  const [activeTab, setActiveTab] = useState<Tab>('settings')
+  const [activeTab, setActiveTab] = useState<Tab>('account')
   const [providersExpanded, setProvidersExpanded] = useState(false)
+  const [docsExpanded, setDocsExpanded] = useState(false)
 
-  // Auto-expand providers when a provider tab is active
+  // Auto-expand sections when an internal tab is active
   useEffect(() => {
     if (providerTabs.some(t => t.id === activeTab)) {
       setProvidersExpanded(true)
     }
+    if (activeTab === 'docs-cloud' || activeTab === 'docs-pricing') {
+      setDocsExpanded(true)
+    }
   }, [activeTab])
 
   const tabs = [
-    { id: 'settings' as Tab, label: 'Settings', icon: SettingsIcon },
+    { id: 'account' as Tab, label: 'Account', icon: User },
+    { id: 'settings' as Tab, label: 'General', icon: SettingsIcon },
     { id: 'websearch' as Tab, label: 'Web Search', icon: Search },
-    { id: 'cuda' as Tab, label: 'CUDA', icon: Cpu },
-    { id: 'trainer' as Tab, label: 'Trainer', icon: Zap }
+    { id: 'cuda' as Tab, label: 'CUDA', icon: Cpu }
   ]
 
   const providerTabs = [
-    { id: 'provider-ollama' as Tab, label: 'Ollama', providerType: 'ollama' as ProviderType },
-    { id: 'provider-huggingface' as Tab, label: 'Hugging Face', providerType: 'huggingface' as ProviderType }
+    { id: 'provider-ollama' as Tab, label: 'Ollama', providerType: 'ollama' as ProviderType }
+  ]
+
+  const docsTabs = [
+    { id: 'docs-cloud' as Tab, label: 'Cloud & Privacy' },
+    { id: 'docs-pricing' as Tab, label: 'Pricing Transparency' }
   ]
 
   return (
@@ -75,7 +85,7 @@ export function SettingsModal({
       <div className="bg-background border border-border rounded-lg shadow-lg w-full max-w-5xl h-[85vh] flex overflow-hidden">
         {/* Sidebar with Tabs */}
         <div
-          className="w-48 flex-shrink-0 border-r border-border p-4"
+          className="w-52 flex-shrink-0 border-r border-border p-4"
           style={{ backgroundColor: 'var(--color-sidebar)' }}
         >
           <div className="space-y-1">
@@ -96,7 +106,7 @@ export function SettingsModal({
             ))}
 
             {/* Providers Dropdown */}
-            <div>
+            <div className="pt-2">
               <button
                 onClick={() => setProvidersExpanded(!providersExpanded)}
                 className={cn(
@@ -134,20 +144,61 @@ export function SettingsModal({
                 </div>
               )}
             </div>
+
+            {/* Docs Dropdown */}
+            <div className="pt-2">
+              <button
+                onClick={() => setDocsExpanded(!docsExpanded)}
+                className={cn(
+                  'w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors',
+                  activeTab.startsWith('docs-')
+                    ? 'bg-primary/20 text-foreground'
+                    : 'text-muted-foreground hover:bg-white/10 hover:text-foreground'
+                )}
+              >
+                <BookOpen className="w-4 h-4" />
+                <span className="flex-1 text-left">Internal Docs</span>
+                {docsExpanded ? (
+                  <ChevronDown className="w-4 h-4" />
+                ) : (
+                  <ChevronRight className="w-4 h-4" />
+                )}
+              </button>
+
+              {docsExpanded && (
+                <div className="ml-4 mt-1 space-y-1">
+                  {docsTabs.map((tab) => (
+                    <button
+                      key={tab.id}
+                      onClick={() => setActiveTab(tab.id)}
+                      className={cn(
+                        'w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium transition-colors',
+                        activeTab === tab.id
+                          ? 'bg-primary text-primary-foreground'
+                          : 'text-muted-foreground hover:bg-white/10 hover:text-foreground'
+                      )}
+                    >
+                      <span className="flex-1 text-left">{tab.label}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
         {/* Main Content */}
         <div className="flex-1 flex flex-col min-w-0">
           {/* Header */}
-          <div className="flex items-center justify-between p-6 border-b border-border flex-shrink-0">
-            <h2 className="text-2xl font-semibold">
+          <div className="flex items-center justify-between py-3 px-6 border-b border-border flex-shrink-0 bg-background/50 backdrop-blur-md sticky top-0 z-10">
+            <h2 className="text-xl font-semibold">
               {tabs.find(t => t.id === activeTab)?.label ||
                 providerTabs.find(t => t.id === activeTab)?.label ||
+                docsTabs.find(t => t.id === activeTab)?.label ||
                 'Settings'}
             </h2>
-            <Button variant="ghost" size="icon" onClick={onClose}>
-              <X className="w-5 h-5" />
+            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onClose}>
+              <X className="w-4 h-4" />
             </Button>
           </div>
 
@@ -172,8 +223,21 @@ export function SettingsModal({
               <CudaSettings />
             )}
 
-            {activeTab === 'trainer' && (
-              <TrainerSettings />
+
+            {activeTab === 'account' && (
+              <AccountSettings />
+            )}
+
+            {activeTab === 'docs-cloud' && (
+              <div className="p-6">
+                <DocsCloudSettings />
+              </div>
+            )}
+
+            {activeTab === 'docs-pricing' && (
+              <div className="p-6">
+                <DocsPricingSettings />
+              </div>
             )}
 
             {providerTabs.some(t => t.id === activeTab) && (
@@ -198,7 +262,7 @@ export function SettingsModal({
                       onUpdateProvider={onUpdateProvider}
                       onTestProvider={onTestProvider}
                       onSelectModel={onSelectModel}
-                      onLoadModels={_onLoadModels}
+                      onLoadModels={onLoadModels}
                     />
                   )
                 })()}

@@ -17,11 +17,6 @@ dist
 dist-ssr
 *.local
 
-# Environment variables
-.env
-.env.*
-!.env.example
-
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
@@ -36,5 +31,15 @@ Thumbs.db
 
 # Test coverage
 coverage
+
+# Python / Backend
+backend/.venv/
+backend/__pycache__/
+*.pyc
+.pytest_cache/
+.uv/
+
+# Supabase
+supabase/.temp/
 
 

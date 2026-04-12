@@ -101,17 +101,17 @@ export class SmartSearchManager {
         console.log('[SmartSearch] Attempting fallback to free provider...');
 
         try {
-          const freeProvider = searchProviderRegistry.getProvider('free');
-          const results = await freeProvider.search(query, { maxResults });
+          const fallbackProvider = searchProviderRegistry.getProvider('supabase');
+          const results = await fallbackProvider.search(query, { maxResults });
           const searchTime = Date.now() - startTime;
 
           const metadata: SearchMetadata = {
-            provider: freeProvider.name,
-            providerId: 'free',
+            provider: fallbackProvider.name,
+            providerId: 'supabase',
             resultCount: results.length,
             searchTime,
             cost: 0,
-            quality: this.assessQuality(freeProvider, results),
+            quality: this.assessQuality(fallbackProvider, results),
             usedFallback: true
           };
 
@@ -188,8 +188,8 @@ export class SmartSearchManager {
       }
     }
 
-    // For simple queries or no paid providers, use free
-    return 'free';
+    // For simple queries or no paid providers, use supabase
+    return 'supabase';
   }
 
   /**

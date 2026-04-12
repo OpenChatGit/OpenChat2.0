@@ -21,8 +21,11 @@ export interface SearchOptions {
   maxResults?: number;
   language?: string;
   dateRange?: 'day' | 'week' | 'month' | 'year';
+  timeRange?: string;
+  time_range?: string;
   domain?: string;
   timeout?: number;
+  signal?: AbortSignal;
 }
 
 // ============================================================================

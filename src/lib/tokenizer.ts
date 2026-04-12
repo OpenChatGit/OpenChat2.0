@@ -7,7 +7,6 @@ export interface TokenCount {
 }
 
 export class Tokenizer {
-  private static tiktokenCache: Map<string, any> = new Map();
 
   /**
    * Count tokens for a given text and model
@@ -18,7 +17,6 @@ export class Tokenizer {
     try {
       switch (provider) {
         case 'ollama':
-        case 'huggingface':
           return this.countOllamaTokens(text, model);
         default:
           return this.fallbackEstimation(text);
@@ -33,28 +31,10 @@ export class Tokenizer {
 
 
 
-  /**
-   * Count tokens for Ollama and local models using tiktoken with cl100k_base encoding
-   */
   private static countOllamaTokens(text: string, _model: string): number {
-    try {
-      // Dynamic import to avoid bundling issues
-      const { get_encoding } = require('tiktoken');
-      
-      // Use cl100k_base encoding (GPT-4 tokenizer) for all local models
-      // This provides a good approximation for most modern models (Llama, Mistral, Qwen, etc.)
-      let encoder = this.tiktokenCache.get('cl100k_base');
-      if (!encoder) {
-        encoder = get_encoding('cl100k_base');
-        this.tiktokenCache.set('cl100k_base', encoder);
-      }
-
-      const tokens = encoder.encode(text);
-      return tokens.length;
-    } catch (error) {
-      console.warn('tiktoken not available for Ollama, using fallback:', error);
-      return this.fallbackEstimation(text);
-    }
+    // tiktoken is not easily usable in browser without wasm setup
+    // Use fallback estimation which is safe and efficient
+    return this.fallbackEstimation(text);
   }
 
   /**
@@ -115,19 +95,9 @@ export class Tokenizer {
   }
 
   /**
-   * Clean up cached encoders
+   * Clean up (no-op since tiktoken was removed)
    */
   static cleanup(): void {
-    // Free encoders if they have a free method
-    for (const encoder of this.tiktokenCache.values()) {
-      if (encoder && typeof encoder.free === 'function') {
-        try {
-          encoder.free();
-        } catch (error) {
-          console.warn('Error freeing encoder:', error);
-        }
-      }
-    }
-    this.tiktokenCache.clear();
+    // No-op
   }
 }

@@ -10,6 +10,8 @@ export interface SearchOptions {
   maxResults?: number;
   timeout?: number;
   forceSearch?: boolean;
+  timeRange?: string;
+  time_range?: string; // Legacy/Compat support
 }
 
 export interface RAGConfig {

@@ -15,7 +15,7 @@ export function useProviders() {
   useEffect(() => {
     const defaultProviders: ProviderConfig[] = [
       ProviderFactory.getDefaultConfig('ollama'),
-      ProviderFactory.getDefaultConfig('huggingface'),
+      ProviderFactory.getDefaultConfig('supabase-premium'),
     ]
 
     // Load from localStorage if available
@@ -119,7 +119,7 @@ export function useProviders() {
       
       // Validate that the selected model exists in the visible cached list
       if (selectedModel) {
-        const modelExists = visibleCached.some(m => m.name === selectedModel)
+        const modelExists = visibleCached.some(m => (m.id || m.name) === selectedModel)
         if (!modelExists) {
           // Selected model doesn't exist in visible cache, clear it
           setSelectedModel('')
@@ -133,7 +133,7 @@ export function useProviders() {
         saveLocal('selectedModel', '')
       }
     }
-  }, [selectedProvider, selectedProvider?.hiddenModels, selectedModel])
+  }, [selectedProvider, selectedProvider?.hiddenModels]) // Removed selectedModel to prevent feedback loop
 
   useEffect(() => {
     if (selectedModel) {
@@ -161,7 +161,7 @@ export function useProviders() {
       
       // Validate that the currently selected model exists in the visible list
       if (selectedModel) {
-        const modelExists = visibleModels.some(m => m.name === selectedModel)
+        const modelExists = visibleModels.some(m => (m.id || m.name) === selectedModel)
         if (!modelExists) {
           // Selected model doesn't exist in visible models or is hidden, clear it
           setSelectedModel('')
@@ -171,7 +171,7 @@ export function useProviders() {
       
       // Auto-select first model if none selected and visible models are available
       if (visibleModels.length > 0 && !selectedModel) {
-        setSelectedModel(visibleModels[0].name)
+        setSelectedModel(visibleModels[0].id || visibleModels[0].name)
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error)
@@ -194,7 +194,7 @@ export function useProviders() {
     } finally {
       setIsLoadingModels(false)
     }
-  }, [selectedModel])
+  }, []) // Removed selectedModel dependency to break the update loop
 
   const testProvider = useCallback(async (providerConfig: ProviderConfig): Promise<boolean> => {
     try {

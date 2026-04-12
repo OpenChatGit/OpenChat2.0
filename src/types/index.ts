@@ -1,6 +1,6 @@
 // Core types for the modular provider system
 
-export type ProviderType = 'ollama' | 'huggingface';
+export type ProviderType = 'ollama' | 'supabase-premium';
 
 export interface ImageAttachment {
   id: string;
@@ -23,13 +23,15 @@ export interface TokenUsage {
 
 export interface Message {
   id: string;
-  role: 'user' | 'assistant' | 'system';
+  role: 'user' | 'assistant' | 'system' | 'tool';
   content: string;
   timestamp: number;
+  toolCalls?: any[]; // Keep as any for now to avoid circular deps or use imports
+  toolCallId?: string; // For tool response messages
   images?: ImageAttachment[]; // Array of attached images
   isReasoning?: boolean; // Flag to indicate if this is a reasoning model response
   isHidden?: boolean; // Hide from UI (tool results, etc.)
-  status?: 'thinking' | 'searching' | 'processing' | 'generating' | 'cancelled'; // Status indicator
+  status?: 'thinking' | 'searching' | 'processing' | 'generating' | 'cancelled' | 'completed'; // Status indicator
   isStreaming?: boolean; // Track if message is actively streaming
   metadata?: {
     model?: string;
@@ -66,26 +68,27 @@ export interface ChatSession {
   updatedAt: number;
 }
 
-// Canvas-specific types
-export interface FileItem {
-  id: string;
-  name: string;
-  language: string;
-  content: string;
-}
 
 export interface ModelInfo {
+  id: string;
   name: string;
-  size?: string;
-  modified?: string;
-  digest?: string;
-  details?: Record<string, any>;
-  capabilities?: {
-    vision?: boolean; // Indicates if model supports vision
-    maxImageSize?: number; // Max image size in bytes
-    maxImages?: number; // Max number of images per message
-    reasoning?: boolean; // Indicates if model supports reasoning/thinking
+  provider: string;
+  size?: 'Standard' | 'Vast' | 'Extreme' | 'Universal';
+  pricing?: {
+    prompt: string;
+    completion: string;
+    [key: string]: any;
   };
+  capabilities?: {
+    vision: boolean;
+    reasoning: boolean;
+    [key: string]: any;
+  };
+  description?: string;
+  context_length?: number;
+  architecture?: any;
+  supported_parameters?: string[];
+  top_provider?: any;
 }
 
 export interface StreamChunk {
@@ -105,8 +108,11 @@ export interface ProviderConfig {
 export interface ChatCompletionRequest {
   model: string;
   messages: Array<{
-    role: 'system' | 'user' | 'assistant';
+    role: 'system' | 'user' | 'assistant' | 'tool';
     content: string;
+    tool_call_id?: string;
+    tool_calls?: any[];
+    images?: any[]; // Allow images in the request
   }>;
   stream?: boolean;
   temperature?: number;
@@ -133,7 +139,8 @@ export interface ChatCompletionResponse {
     index: number;
     message: {
       role: string;
-      content: string;
+      content: string | null;
+      tool_calls?: any[];
       reasoning_content?: string;
     };
     finish_reason?: string;
@@ -149,7 +156,8 @@ export interface StreamResponse {
     index: number;
     delta: {
       role?: string;
-      content?: string;
+      content?: string | null;
+      tool_calls?: any[];
       reasoning_content?: string;
     };
     finish_reason?: string | null;

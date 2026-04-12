@@ -1,81 +1,88 @@
 import { useState, useEffect } from 'react'
-import { getApiKey, setApiKey, removeApiKey } from '../lib/secureStorage'
-import { validateToken, type HuggingFaceUser } from '../services/huggingface'
+import { supabase } from '../lib/supabase'
 
-const AUTH_KEY = 'huggingface'
-const USER_CACHE_KEY = 'hf.user'
+export interface AppUser {
+  id: string
+  name: string
+  fullname: string
+  email?: string
+  avatarUrl?: string
+  isPro: boolean
+  provider: 'supabase'
+}
 
 export function useAuth() {
-  const [user, setUser] = useState<HuggingFaceUser | null>(null)
+  const [user, setUser] = useState<AppUser | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isAuthenticated, setIsAuthenticated] = useState(false)
 
-  // Load user from cache and validate token on mount
   useEffect(() => {
     const initAuth = async () => {
+      setIsLoading(true)
       try {
-        // Try to load cached user
-        const cachedUser = localStorage.getItem(USER_CACHE_KEY)
-        if (cachedUser) {
-          setUser(JSON.parse(cachedUser))
-        }
-
-        // Check if token exists
-        const token = getApiKey(AUTH_KEY)
-        if (token) {
-          // Validate token and get fresh user info
-          const userInfo = await validateToken(token)
-          setUser(userInfo)
+        const { data: { session } } = await supabase.auth.getSession()
+        if (session?.user) {
+          const nameMetadata = session.user.user_metadata?.full_name || session.user.user_metadata?.name || session.user.email?.split('@')[0]
+          setUser({
+            id: session.user.id,
+            name: session.user.user_metadata?.user_name || nameMetadata || 'User',
+            fullname: nameMetadata || 'User',
+            email: session.user.email,
+            avatarUrl: session.user.user_metadata?.avatar_url,
+            isPro: false,
+            provider: 'supabase'
+          })
           setIsAuthenticated(true)
-          // Update cache
-          localStorage.setItem(USER_CACHE_KEY, JSON.stringify(userInfo))
         } else {
           setUser(null)
           setIsAuthenticated(false)
-          localStorage.removeItem(USER_CACHE_KEY)
         }
       } catch (error) {
-        console.error('Failed to validate token:', error)
-        // Token is invalid, clear it
-        removeApiKey(AUTH_KEY)
+        console.error('Auth init failed:', error)
         setUser(null)
         setIsAuthenticated(false)
-        localStorage.removeItem(USER_CACHE_KEY)
       } finally {
         setIsLoading(false)
       }
     }
 
     initAuth()
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session?.user) {
+        const nameMetadata = session.user.user_metadata?.full_name || session.user.user_metadata?.name || session.user.email?.split('@')[0]
+        setUser({
+          id: session.user.id,
+          name: session.user.user_metadata?.user_name || nameMetadata || 'User',
+          fullname: nameMetadata || 'User',
+          email: session.user.email,
+          avatarUrl: session.user.user_metadata?.avatar_url,
+          isPro: false,
+          provider: 'supabase'
+        })
+        setIsAuthenticated(true)
+      } else {
+        setUser(null)
+        setIsAuthenticated(false)
+      }
+    })
+
+    return () => {
+      subscription.unsubscribe()
+    }
   }, [])
 
-  const login = async (token: string) => {
-    setIsLoading(true)
-    try {
-      const userInfo = await validateToken(token)
-      setApiKey(AUTH_KEY, token)
-      setUser(userInfo)
-      setIsAuthenticated(true)
-      localStorage.setItem(USER_CACHE_KEY, JSON.stringify(userInfo))
-    } catch (error) {
-      throw error
-    } finally {
-      setIsLoading(false)
-    }
-  }
-
-  const logout = () => {
-    removeApiKey(AUTH_KEY)
+  const logout = async () => {
+    await supabase.auth.signOut()
     setUser(null)
     setIsAuthenticated(false)
-    localStorage.removeItem(USER_CACHE_KEY)
   }
 
   return {
     user,
     isLoading,
     isAuthenticated,
-    login,
+    login: () => {}, // No longer needed for HF
     logout
   }
 }

@@ -106,8 +106,7 @@ export class OllamaProvider extends BaseProvider {
       
       if (msg.tool_calls && msg.tool_calls.length > 0) {
         console.log('[Ollama] Received tool calls:', msg.tool_calls)
-        const toolCallsJson = JSON.stringify(msg.tool_calls, null, 2)
-        return `Tool calls received:\n\`\`\`json\n${toolCallsJson}\n\`\`\``
+        return msg.tool_calls
       }
 
       // Read thinking, reasoning_content or reasoning
@@ -140,6 +139,7 @@ export class OllamaProvider extends BaseProvider {
     const decoder = new TextDecoder()
     let fullContent = ''
     let reasoningOpen = false
+    const toolCalls: any[] = []
 
     try {
       while (true) {
@@ -155,10 +155,14 @@ export class OllamaProvider extends BaseProvider {
             const msg = json.message || {}
             
             if (msg.tool_calls && msg.tool_calls.length > 0) {
-              const toolCallsJson = JSON.stringify(msg.tool_calls, null, 2)
-              const toolCallStr = `\n\`\`\`json\n${toolCallsJson}\n\`\`\`\n`
-              fullContent += toolCallStr
-              onChunk(toolCallStr)
+              msg.tool_calls.forEach((tc: any) => {
+                const index = tc.index || toolCalls.length
+                if (!toolCalls[index]) {
+                  toolCalls[index] = tc
+                }
+              })
+              // Callback with current tool calls (passed as empty content for compatibility)
+              onChunk('')
             }
 
             // Read the official 'thinking' field introduced in latest Ollama
@@ -203,6 +207,7 @@ export class OllamaProvider extends BaseProvider {
       fullContent += '\n</think>\n'
       onChunk('\n</think>\n')
     }
+
     return fullContent
   }
 

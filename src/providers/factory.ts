@@ -1,16 +1,15 @@
-// Provider factory - creates provider instances based on type
 import type { ProviderConfig, ProviderType } from '../types'
 import { BaseProvider } from './base'
 import { OllamaProvider } from './ollama'
-import { HuggingFaceProvider } from './huggingface'
+import { SupabasePremiumProvider } from './supabase-premium'
 
 export class ProviderFactory {
   static createProvider(config: ProviderConfig): BaseProvider {
     switch (config.type) {
       case 'ollama':
         return new OllamaProvider(config)
-      case 'huggingface':
-        return new HuggingFaceProvider(config)
+      case 'supabase-premium':
+        return new SupabasePremiumProvider(config)
       default:
         throw new Error(`Unsupported provider type: ${config.type}`)
     }
@@ -24,10 +23,10 @@ export class ProviderFactory {
         baseUrl: 'http://localhost:11434',
         enabled: true,
       },
-      huggingface: {
-        type: 'huggingface',
-        name: 'Hugging Face',
-        baseUrl: 'https://api-inference.huggingface.co',
+      'supabase-premium': {
+        type: 'supabase-premium',
+        name: 'OpenChat Cloud',
+        baseUrl: '', // Managed by Supabase URL
         enabled: true,
       },
     }

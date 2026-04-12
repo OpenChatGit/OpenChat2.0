@@ -9,27 +9,6 @@ export async function invoke<T = any>(cmd: string, args: any = {}): Promise<T> {
   // Map Tauri commands to FastAPI endpoints
   let endpoint = ''
   let payload: any = {}
-
-  if (cmd === 'run_terminal_command') {
-    endpoint = '/api/terminal'
-    payload = {
-      command: args.command,
-      workingDir: args.workingDir || undefined
-    }
-    
-    const response = await fetch(`${BACKEND_URL}${endpoint}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    })
-    
-    if (!response.ok) throw new Error(`HTTP Error: ${response.statusText}`)
-    
-    const data = await response.json()
-    // Compatibility with existing expectancies
-    if (data.exit_code !== 0 && data.stderr) throw new Error(data.stderr)
-    return data.stdout as any
-  } 
   
   if (cmd === 'proxy_http_request') {
     endpoint = '/api/proxy'
