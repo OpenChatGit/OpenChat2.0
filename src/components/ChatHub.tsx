@@ -693,7 +693,34 @@ export function ChatHub({ onRunPrompt, view }: { onRunPrompt: (prompt: string) =
     } catch (err) { console.error(err); }
   }
 
-  const handleReportPost = (id: string) => { console.log('Reported', id); };
+  const handleReportPost = async (postId: string, reportedUserId: string) => {
+    if (!user) return
+    try {
+      const session = await getSafeSession();
+      const token = session?.access_token;
+      
+      const response = await fetch(`${supabaseUrl}/rest/v1/hub_reports?apikey=${supabaseAnonKey}`, {
+        method: 'POST',
+        headers: { 
+            'apikey': supabaseAnonKey, 
+            'Authorization': `Bearer ${token}`, 
+            'Content-Type': 'application/json' 
+        },
+        body: JSON.stringify({
+            post_id: postId,
+            reporter_id: user.id,
+            reported_user_id: reportedUserId,
+            reason: 'User reported via Hub interface',
+            status: 'pending'
+        })
+      });
+
+      if (response.ok) {
+          setErrorStatus('Post reported. Thank you for keeping the community safe.');
+          setTimeout(() => setErrorStatus(null), 5000);
+      }
+    } catch (err) { console.error('Reporting failed', err); }
+  }
 
   const renderComposer = () => {
     // Only show the input on the Home feed
@@ -953,7 +980,7 @@ export function ChatHub({ onRunPrompt, view }: { onRunPrompt: (prompt: string) =
                                         onDelete={handleDeletePost}
                                         onLike={handleToggleLike}
                                         onFork={handleIncrementFork}
-                                        onReport={handleReportPost}
+                                        onReport={() => handleReportPost(post.id, post.user_id)}
                                         onFollow={handleToggleFollow}
                                         onFriendRequest={handleToggleFriend}
                                     />
