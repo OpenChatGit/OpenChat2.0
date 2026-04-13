@@ -230,14 +230,14 @@ END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- 11. Hub Reports
-CREATE TABLE public.hub_reports (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  post_id UUID REFERENCES public.hub_posts(id) ON DELETE CASCADE NOT NULL,
-  reporter_id UUID REFERENCES auth.users(id) ON DELETE SET NULL,
-  reported_user_id UUID REFERENCES public.user_settings(user_id) ON DELETE CASCADE,
-  reason TEXT,
-  status TEXT DEFAULT 'pending' CHECK (status IN ('pending', 'resolved', 'dismissed')),
-  created_at TIMESTAMPTZ DEFAULT now()
+CREATE TABLE IF NOT EXISTS hub_reports (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    post_id UUID REFERENCES hub_posts(id) ON DELETE CASCADE,
+    reporter_id UUID REFERENCES user_settings(user_id) ON DELETE CASCADE NOT NULL,
+    reported_user_id UUID REFERENCES user_settings(user_id) ON DELETE CASCADE NOT NULL,
+    reason TEXT NOT NULL,
+    status TEXT DEFAULT 'pending' CHECK (status IN ('pending', 'resolved', 'dismissed')),
+    created_at TIMESTAMPTZ DEFAULT now()
 );
 
 ALTER TABLE public.hub_reports ENABLE ROW LEVEL SECURITY;
@@ -287,14 +287,16 @@ CREATE POLICY "Users can manage their own follows" ON hub_follows
 DROP POLICY IF EXISTS "Friends are visible to involved parties" ON hub_friends;
 CREATE POLICY "Friends are visible to involved parties" ON hub_friends 
     FOR SELECT USING (auth.uid() = user_id OR auth.uid() = friend_id);
+-- 12. Hub User Blocking
+CREATE TABLE IF NOT EXISTS hub_blocks (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    blocker_id UUID REFERENCES user_settings(user_id) ON DELETE CASCADE NOT NULL,
+    blocked_id UUID REFERENCES user_settings(user_id) ON DELETE CASCADE NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT now(),
+    UNIQUE(blocker_id, blocked_id)
+);
 
-DROP POLICY IF EXISTS "Users can manage their own friend requests" ON hub_friends;
-CREATE POLICY "Users can manage their own friend requests" ON hub_friends 
-    FOR ALL USING (auth.uid() = user_id OR auth.uid() = friend_id);
--- ==========================================
--- PRIVATE MESSAGING SYSTEM
--- ==========================================
-
+-- 13. Hub Private Messaging
 CREATE TABLE IF NOT EXISTS hub_private_messages (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     sender_id UUID REFERENCES user_settings(user_id) ON DELETE CASCADE NOT NULL,

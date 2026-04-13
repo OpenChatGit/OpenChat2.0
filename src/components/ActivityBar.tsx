@@ -1,7 +1,7 @@
 import { MessageSquare, Globe } from 'lucide-react'
 import { cn } from '../lib/utils'
 
-export type ActivityTab = 'chat' | 'hub'
+export type ActivityTab = 'chat' | 'hub' | 'settings' | 'account'
 
 interface ActivityBarProps {
   activeTab: ActivityTab

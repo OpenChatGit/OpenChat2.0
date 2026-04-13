@@ -1,9 +1,10 @@
-import { MessageSquare, MessageCircle, Send, Play, Code, Copy, Trash2, ShieldCheck, Home as HomeIcon, Terminal, Flame, Compass, RefreshCw, MoreHorizontal, Flag, ChevronUp, Check, Maximize2, UserCheck, Users, Eye, ArrowUp, Heart, Zap, Share } from 'lucide-react'
+import { MessageSquare, MessageCircle, Play, Code, Copy, Trash2, ShieldCheck, Home as HomeIcon, Terminal, Flame, Compass, RefreshCw, MoreHorizontal, Flag, ChevronUp, Check, Maximize2, UserCheck, Users, Eye, ArrowUp, Heart, Zap, Share, Search, ShieldAlert } from 'lucide-react'
 import { useState, useEffect, useRef } from 'react'
 import { cn } from '../lib/utils'
 import { VerifiedBadge, type UserRole } from './VerifiedBadge'
+import { HubModal } from './HubModal'
 import { useAuth } from '../hooks/useAuth'
-import { getSafeSession } from '../lib/supabase'
+import { supabase, getSafeSession } from '../lib/supabase'
 import { HubTooltip } from './HubTooltip'
 import { StackBadges } from './StackBadges'
 import ReactMarkdown from 'react-markdown'
@@ -33,6 +34,7 @@ interface HubCardProps {
   isFollowing?: boolean
   isFriend?: 'none' | 'pending' | 'accepted'
   isModerator?: boolean
+  currentUserId?: string
   onRun?: (prompt: string) => void
   onDelete?: (id: string) => void
   onLike?: (id: string, currentlyLiked: boolean) => void
@@ -40,6 +42,7 @@ interface HubCardProps {
   onReport?: (id: string, authorId: string) => void
   onFollow?: (targetId: string, currentlyFollowing: boolean) => void
   onFriendRequest?: (targetId: string, currentStatus: 'none' | 'pending' | 'accepted') => void
+  onBlock?: (userId: string) => void
 }
 
 const slugify = (text: any): string => {
@@ -48,7 +51,7 @@ const slugify = (text: any): string => {
   return str.toLowerCase().replace(/[^\w\s-]/g, '').replace(/\s+/g, '-');
 };
 
-function AIHubCard({ id, user, content, timestamp, stats, isLiked, isForked, isFollowing, isFriend, isModerator, currentUserId, onRun, onDelete, onLike, onFork, onReport, onFollow, onFriendRequest }: HubCardProps & { currentUserId?: string }) {
+function AIHubCard({ id, user, content, timestamp, stats, isLiked, isForked, isFollowing, isFriend, isModerator, currentUserId, onRun, onDelete, onLike, onFork, onReport, onFollow, onFriendRequest, onBlock }: HubCardProps & { currentUserId?: string }) {
   const [showDropdown, setShowDropdown] = useState(false)
   const [showConfirmDelete, setShowConfirmDelete] = useState(false)
   const [isExpanded, setIsExpanded] = useState(false)
@@ -120,13 +123,13 @@ function AIHubCard({ id, user, content, timestamp, stats, isLiked, isForked, isF
 
         <div className="flex-1 min-w-0">
           <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2 min-w-0">
-              <span className="font-black text-sm tracking-tight truncate text-foreground italic">{user.name}</span>
-              <div className="flex items-center gap-2 flex-shrink-0">
+            <div className="flex items-center gap-1.5 min-w-0">
+              <span className="font-black text-sm tracking-tight truncate text-foreground italic leading-none mb-0.5">{user.name}</span>
+              <div className="flex items-center gap-1.5 flex-shrink-0">
                 <VerifiedBadge role={user.role} />
                 <StackBadges stack={user.stack} />
               </div>
-              <span className="text-muted-foreground text-[10px] font-medium opacity-40">· {timestamp}</span>
+              <span className="text-muted-foreground text-[10px] font-medium opacity-40 leading-none">· {timestamp}</span>
             </div>
             
             <div className="flex items-center gap-2 relative" ref={dropdownRef}>
@@ -189,6 +192,19 @@ function AIHubCard({ id, user, content, timestamp, stats, isLiked, isForked, isF
                             <Flag size={14} />
                             Report Post
                         </button>
+
+                        {user.id !== currentUserId && (
+                            <button 
+                                onClick={() => {
+                                    onBlock?.(user.id);
+                                    setShowDropdown(false);
+                                }}
+                                className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-bold text-muted-foreground hover:text-red-500 hover:bg-red-500/10 transition-all text-left"
+                            >
+                                <ShieldAlert size={14} />
+                                Block User
+                            </button>
+                        )}
                         
                         {(isModerator || user.id === currentUserId) && (
                             <button 
@@ -360,12 +376,18 @@ function AIHubCard({ id, user, content, timestamp, stats, isLiked, isForked, isF
 
 function RulesView() {
     const rules = [
-        { title: "Freedom of Expression", desc: "All topics, including political discourse, are allowed." },
-        { title: "Factual Integrity", desc: "Posts must make sense and avoid deliberate misinformation." },
-        { title: "Zero Tolerance for Hate", desc: "Racism, hate speech, and dehumanizing behavior are strictly prohibited." },
-        { title: "Safety & Illegal Content", desc: "Do not post content that is illegal or universally deemed harmful." },
-        { title: "Authenticity", desc: "Be yourself. No bots masquerading as humans." },
-        { title: "Common Sense & Ethics", desc: "Follow basic societal ethics. Treat fellow creators with dignity." }
+        { title: "Safe & Respectful Haven", desc: "No harassment, bullying, or hate speech. Threats of violence and extremism are strictly prohibited." },
+        { title: "Zero Child Harm", desc: "Absolute zero-tolerance for content that endangers or exploits minors. This is a global red line." },
+        { title: "Legal & Digital Integrity", desc: "No fraud, scams, or distribution of malware. Promoting illegal goods or services is restricted." },
+        { title: "Privacy & Data Protection", desc: "Respect the privacy of others. No Doxing or sharing of non-consensual private information." },
+        { title: "Authentic Identity", desc: "Be yourself. Do not impersonate others or create fake profiles to deceive our community." },
+        { title: "Spam & Info-Security", desc: "Keep the hub clean. No spamming, phishing, or spreading harmful deepfake misinformation." },
+        { title: "Intellectual Property", desc: "Respect copyrights and trademarks. Do not share content that you don't have the right to distribute." },
+        { title: "Self-Harm Prevention", desc: "We care about you. No content that encourages self-harm, suicide, or eating disorders." },
+        { title: "Graphic Content", desc: "No excessive gore, disturbing violence, or gratuitous graphic content that shocks the audience." },
+        { title: "Advertising Etiquette", desc: "No unsolicited commercial promotions. Marketing must follow designated community channels." },
+        { title: "Enforcement Integrity", desc: "Do not attempt to evade bans or restrictions. Alt-accounts used for evasion will be terminated." },
+        { title: "Medical Misinformation", desc: "No spread of dangerous medical or health misinformation that could lead to physical harm." }
     ];
 
     return (
@@ -391,6 +413,218 @@ function RulesView() {
 
 type HubView = 'home' | 'explore' | 'rules' | 'friends' | 'messages';
 
+interface MessagesViewProps {
+    user: any;
+    friendsList: any[];
+    activeChatUserId: string | null;
+    setActiveChatUserId: (id: string | null) => void;
+    onlineUserIds: string[];
+    handleReportPost: (postId: string | null, reportedUserId: string) => void;
+    handleBlockUser: (targetUserId: string | null) => void;
+    chatMessages: any[];
+    msgInput: string;
+    setMsgInput: (val: string) => void;
+    handleSendMessage: () => void;
+    blockedByMe: string[];
+    whoBlockedMe: string[];
+}
+
+function MessagesView({
+    user,
+    friendsList,
+    activeChatUserId,
+    setActiveChatUserId,
+    onlineUserIds,
+    handleReportPost,
+    handleBlockUser,
+    chatMessages,
+    msgInput,
+    setMsgInput,
+    handleSendMessage,
+    blockedByMe,
+    whoBlockedMe
+}: MessagesViewProps) {
+    return (
+        <div className="flex h-[calc(100vh-8rem)] bg-card border border-border/50 rounded-3xl overflow-hidden shadow-2xl animate-in fade-in slide-in-from-bottom-4 duration-700">
+            {/* Conversations Sidebar (Left) */}
+            <div className="w-[380px] flex-shrink-0 border-r border-border/10 flex flex-col bg-black/20">
+                <div className="p-6 space-y-4">
+                    <div className="flex items-center justify-between">
+                        <h3 className="text-xl font-black uppercase tracking-tighter italic">Messages</h3>
+                        <div className="flex gap-2">
+                             <div className="p-2 rounded-xl bg-primary/10 text-primary"><MessageSquare size={16} /></div>
+                        </div>
+                    </div>
+                    
+                    <div className="relative group">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground/30 group-focus-within:text-primary transition-colors" size={14} />
+                        <input 
+                            placeholder="Search conversation..." 
+                            className="w-full bg-white/5 border border-white/10 rounded-xl py-2.5 pl-10 pr-4 text-[10px] font-bold uppercase tracking-widest outline-none transition-all focus:border-primary/40 focus:bg-white/10"
+                        />
+                    </div>
+                </div>
+
+                <div className="flex-1 overflow-y-auto custom-scrollbar">
+                    <div className="px-3 pb-6 space-y-1">
+                        {friendsList.length === 0 ? (
+                            <div className="p-12 text-center opacity-20">
+                                <Users size={32} className="mx-auto mb-4 border-2 border-dashed border-current p-2 rounded-full" />
+                                <p className="text-[10px] font-black uppercase tracking-widest">No friends found</p>
+                            </div>
+                        ) : (
+                            friendsList.map(f => (
+                                <div 
+                                    key={f.user_id}
+                                    onClick={() => setActiveChatUserId(f.user_id)}
+                                    className={cn(
+                                        "p-4 rounded-2xl cursor-pointer transition-all flex items-center gap-4 group/item border",
+                                        activeChatUserId === f.user_id 
+                                            ? "border-primary shadow-[0_0_15px_rgba(var(--primary),0.1)]" 
+                                            : "border-transparent hover:bg-white/5"
+                                    )}
+                                >
+                                    <div className="relative">
+                                        <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-primary/20 to-purple-500/20 flex items-center justify-center border border-primary/10 shadow-lg text-primary font-black italic text-xl overflow-hidden relative">
+                                            {f.avatar_url ? (
+                                                <img src={f.avatar_url} alt={f.display_name} className="w-full h-full object-cover" />
+                                            ) : (
+                                                <span className="text-primary">{f.display_name[0]}</span>
+                                            )}
+                                            {/* Online Badge on Avatar */}
+                                            {onlineUserIds.includes(f.user_id) && (
+                                                <div className="absolute bottom-1 right-1 w-2.5 h-2.5 bg-green-500 rounded-full border-2 border-black" />
+                                            )}
+                                        </div>
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                        <div className="flex items-center justify-between mb-1 gap-2">
+                                            <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                                                <span className="text-sm font-black italic uppercase tracking-tighter truncate leading-none pr-2 text-foreground">{f.display_name}</span>
+                                                <VerifiedBadge role={f.role} className="scale-75 origin-left shrink-0" />
+                                            </div>
+                                            <div className={cn(
+                                                "text-[9px] font-black uppercase tracking-tighter italic shrink-0",
+                                                onlineUserIds.includes(f.user_id) ? "text-green-500" : "text-muted-foreground/30"
+                                            )}>
+                                                {onlineUserIds.includes(f.user_id) ? 'Online' : 'Offline'}
+                                            </div>
+                                        </div>
+                                        <div className="text-[10px] font-bold uppercase tracking-widest truncate opacity-60 text-muted-foreground">
+                                            {onlineUserIds.includes(f.user_id) ? 'Available to chat' : 'Click to message'}
+                                        </div>
+                                    </div>
+                                </div>
+                            ))
+                        )}
+                    </div>
+                </div>
+            </div>
+
+            {/* Active Message Area (Right) */}
+            <div className="flex-1 flex flex-col bg-black/10 relative overflow-hidden">
+                {!activeChatUserId ? (
+                    <div className="flex-1 flex flex-col items-center justify-center p-12 text-center">
+                        <div className="absolute inset-0 bg-gradient-to-b from-primary/5 to-transparent pointer-events-none" />
+                        <div className="relative z-10 flex flex-col items-center max-w-sm">
+                            <div className="w-20 h-20 rounded-[32px] bg-white/5 border border-white/10 flex items-center justify-center mb-8 shadow-2xl animate-pulse">
+                                <MessageSquare size={32} className="text-muted-foreground/40" />
+                            </div>
+                            <h3 className="text-3xl font-black uppercase tracking-tighter italic mb-3">Select a Message</h3>
+                            <p className="text-sm font-bold text-muted-foreground uppercase tracking-widest leading-loose opacity-40">
+                                Choose from your existing conversations to connect with other creators.
+                            </p>
+                        </div>
+                    </div>
+                ) : (() => {
+                    const activeFriend = friendsList.find(f => f.user_id === activeChatUserId);
+                    return (
+                        <div className="flex-1 flex flex-col animate-in fade-in duration-300">
+                            {/* Chat Header */}
+                            <div className="px-6 py-2.5 border-b border-white/5 bg-black/20 flex items-center justify-end">
+                                <div className="flex gap-2">
+                                     <button 
+                                        onClick={() => handleReportPost(null, activeChatUserId)}
+                                        className="p-2 rounded-xl hover:bg-white/5 text-muted-foreground hover:text-red-500 transition-all"
+                                        title="Report User"
+                                    >
+                                        <Flag size={18} />
+                                    </button>
+                                    <button 
+                                        onClick={() => handleBlockUser(activeChatUserId)}
+                                        className="p-2 rounded-xl hover:bg-white/5 text-muted-foreground hover:text-red-500 transition-all"
+                                        title="Block User"
+                                    >
+                                        <ShieldAlert size={18} />
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* Message History */}
+                            <div className="flex-1 overflow-y-auto p-8 space-y-4 custom-scrollbar flex flex-col">
+                                {chatMessages.length === 0 ? (
+                                    <div className="flex-1 flex flex-col items-center justify-center opacity-10 grayscale">
+                                        <MessageCircle size={48} className="mb-4" />
+                                        <h4 className="text-xl font-black uppercase tracking-tighter italic">No history yet</h4>
+                                        <p className="text-[10px] font-bold uppercase tracking-[0.2em] mt-2">Start a conversation!</p>
+                                    </div>
+                                ) : (
+                                    chatMessages.map(m => {
+                                        const isMine = m.sender_id === user?.id;
+                                        return (
+                                            <div key={m.id} className={cn(
+                                                "flex items-end gap-2 max-w-[85%] animate-in fade-in slide-in-from-bottom-1 duration-300",
+                                                isMine ? "self-end flex-row-reverse" : "self-start flex-row"
+                                            )}>
+                                                <div className={cn(
+                                                    "py-2 px-3.5 rounded-2xl text-xs font-semibold leading-relaxed shadow-sm",
+                                                    isMine 
+                                                        ? "bg-primary text-primary-foreground" 
+                                                        : "bg-white/5 border border-white/5 text-foreground"
+                                                )}>
+                                                    {m.content}
+                                                </div>
+                                                <span className="text-[8px] font-black uppercase tracking-widest opacity-20 mb-1 shrink-0 italic">
+                                                    {new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                </span>
+                                            </div>
+                                        );
+                                    })
+                                )}
+                            </div>
+
+                            {/* Message Input */}
+                            <div className="p-6 relative">
+                                {blockedByMe.includes(activeChatUserId) || whoBlockedMe.includes(activeChatUserId) ? (
+                                    <div className="py-4 px-6 rounded-2xl bg-red-500/10 border border-red-500/20 text-red-500 text-center text-[10px] font-black uppercase tracking-widest italic">
+                                        You cannot message this user. Connection blocked.
+                                    </div>
+                                ) : (
+                                    <div className="relative group">
+                                        <input 
+                                            value={msgInput}
+                                            onChange={(e) => setMsgInput(e.target.value)}
+                                            onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
+                                            placeholder={`Message ${activeFriend?.display_name || ''}...`} 
+                                            className="w-full bg-white/10 border border-white/10 rounded-2xl py-4 px-6 pr-16 text-sm font-medium outline-none transition-all focus:border-primary/40 focus:bg-white/15" 
+                                        />
+                                        <button 
+                                            onClick={handleSendMessage}
+                                            className="absolute right-3 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-white text-black flex items-center justify-center shadow-xl hover:scale-110 active:scale-90 transition-all group/send"
+                                        >
+                                            <ArrowUp size={14} strokeWidth={3} className="transition-transform group-hover/send:-translate-y-0.5" />
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    );
+                })()}
+            </div>
+        </div>
+    );
+}
+
 export function ChatHub({ onRunPrompt, view }: { onRunPrompt: (prompt: string) => void, view: HubView }) {
   const { user } = useAuth()
   const [posts, setPosts] = useState<any[]>([])
@@ -406,6 +640,17 @@ export function ChatHub({ onRunPrompt, view }: { onRunPrompt: (prompt: string) =
   const [friendContext, setFriendContext] = useState<any[]>([])
   const [friendsList, setFriendsList] = useState<any[]>([])
   const [friendRequests, setFriendRequests] = useState<any[]>([])
+  const [activeChatUserId, setActiveChatUserId] = useState<string | null>(null)
+  const [onlineUserIds, setOnlineUserIds] = useState<string[]>([])
+  const [reportModal, setReportModal] = useState<{ isOpen: boolean; postId: string | null; reportedUserId: string | null }>({
+    isOpen: false,
+    postId: null,
+    reportedUserId: null
+  });
+  const [blockedByMe, setBlockedByMe] = useState<string[]>([])
+  const [whoBlockedMe, setWhoBlockedMe] = useState<string[]>([])
+  const [chatMessages, setChatMessages] = useState<any[]>([])
+  const [msgInput, setMsgInput] = useState('')
 
   const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
   const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -424,12 +669,15 @@ export function ChatHub({ onRunPrompt, view }: { onRunPrompt: (prompt: string) =
       
       if (user?.id) {
           try {
-              const [followRes, friendRes] = await Promise.all([
+              const [followRes, friendRes, blockRes] = await Promise.all([
                   fetch(`${supabaseUrl}/rest/v1/hub_follows?follower_id=eq.${user.id}&select=following_id&apikey=${supabaseAnonKey}`, {
                       headers: { 'apikey': supabaseAnonKey, 'Authorization': `Bearer ${token}` }
                   }),
                   fetch(`${supabaseUrl}/rest/v1/hub_friends?or=(user_id.eq.${user.id},friend_id.eq.${user.id})&select=user_id,friend_id,status&apikey=${supabaseAnonKey}`, {
                       headers: { 'apikey': supabaseAnonKey, 'Authorization': `Bearer ${token}` }
+                  }),
+                  fetch(`${supabaseUrl}/rest/v1/hub_blocks?or=(blocker_id.eq.${user.id},blocked_id.eq.${user.id})&apikey=${supabaseAnonKey}`, {
+                    headers: { 'apikey': supabaseAnonKey, 'Authorization': `Bearer ${token}` }
                   })
               ]);
               if (followRes.ok) {
@@ -441,18 +689,25 @@ export function ChatHub({ onRunPrompt, view }: { onRunPrompt: (prompt: string) =
                   const fCtx = await friendRes.json();
                   setFriendContext(fCtx);
               }
+              if (blockRes.ok) {
+                const blockData = await blockRes.json();
+                setBlockedByMe(blockData.filter((b: any) => b.blocker_id === user.id).map((b: any) => b.blocked_id));
+                setWhoBlockedMe(blockData.filter((b: any) => b.blocked_id === user.id).map((b: any) => b.blocker_id));
+              }
           } catch (socialErr) { console.warn(socialErr); }
       }
 
-      if (view === 'friends' && user?.id) {
+      const allBlockedIds = [...blockedByMe, ...whoBlockedMe];
+
+      if ((view === 'friends' || view === 'messages') && user?.id) {
           try {
-              if (friendsTab === 'list') {
+              if (friendsTab === 'list' || view === 'messages') {
                   const friendsShipRes = await fetch(`${supabaseUrl}/rest/v1/hub_friends?or=(user_id.eq.${user.id},friend_id.eq.${user.id})&status=eq.accepted&select=user_id,friend_id&apikey=${supabaseAnonKey}`, {
                       headers: { 'apikey': supabaseAnonKey, 'Authorization': `Bearer ${token}` }
                   });
                   if (friendsShipRes.ok) {
                       const shipData = await friendsShipRes.json();
-                      const friendIds = shipData.map((s: any) => s.user_id === user.id ? s.friend_id : s.user_id);
+                      const friendIds = shipData.map((s: any) => s.user_id === user.id ? s.friend_id : s.user_id).filter((id: string) => !allBlockedIds.includes(id));
                       if (friendIds.length > 0) {
                           const profilesRes = await fetch(`${supabaseUrl}/rest/v1/user_settings?user_id=in.(${friendIds.join(',')})&select=*&apikey=${supabaseAnonKey}`, {
                               headers: { 'apikey': supabaseAnonKey, 'Authorization': `Bearer ${token}` }
@@ -460,13 +715,15 @@ export function ChatHub({ onRunPrompt, view }: { onRunPrompt: (prompt: string) =
                           if (profilesRes.ok) setFriendsList(await profilesRes.json());
                       } else setFriendsList([]);
                   }
-              } else {
+              } 
+              
+              if (view === 'friends' && friendsTab === 'requests') {
                   const requestsRes = await fetch(`${supabaseUrl}/rest/v1/hub_friends?friend_id=eq.${user.id}&status=eq.pending&select=user_id&apikey=${supabaseAnonKey}`, {
                       headers: { 'apikey': supabaseAnonKey, 'Authorization': `Bearer ${token}` }
                   });
                   if (requestsRes.ok) {
                       const reqData = await requestsRes.json();
-                      const fromIds = reqData.map((r: any) => r.user_id);
+                      const fromIds = reqData.map((r: any) => r.user_id).filter((id: string) => !allBlockedIds.includes(id));
                       if (fromIds.length > 0) {
                           const profilesRes = await fetch(`${supabaseUrl}/rest/v1/user_settings?user_id=in.(${fromIds.join(',')})&select=*&apikey=${supabaseAnonKey}`, {
                               headers: { 'apikey': supabaseAnonKey, 'Authorization': `Bearer ${token}` }
@@ -476,7 +733,7 @@ export function ChatHub({ onRunPrompt, view }: { onRunPrompt: (prompt: string) =
                   }
               }
           } catch (err) { console.error(err); }
-          finally { setIsLoading(false); return; }
+          if (view === 'friends') { setIsLoading(false); return; }
       }
 
       // Pre-fetch requests for counter
@@ -488,6 +745,8 @@ export function ChatHub({ onRunPrompt, view }: { onRunPrompt: (prompt: string) =
 
       const order = activeTab === 'popular' ? 'likes_count.desc' : 'created_at.desc'
       let url = `${supabaseUrl}/rest/v1/hub_posts?select=*,user:user_settings(display_name,avatar_url,role,stack),hub_post_likes(user_id),hub_post_forks(user_id)&order=${order}&apikey=${supabaseAnonKey}`
+      if (allBlockedIds.length > 0) url += `&user_id=not.in.(${allBlockedIds.join(',')})`;
+      
       if (activeTab === 'popular') url += '&likes_count=gt.0'
       if (view === 'home' && user?.id) {
           const filterIds = [user.id, ...followIds];
@@ -693,8 +952,133 @@ export function ChatHub({ onRunPrompt, view }: { onRunPrompt: (prompt: string) =
     } catch (err) { console.error(err); }
   }
 
-  const handleReportPost = async (postId: string, reportedUserId: string) => {
-    if (!user) return
+  // Realtime Presence Logic
+  useEffect(() => {
+    if (!user?.id) return;
+
+    const channel = supabase.channel('hub-presence', {
+        config: { presence: { key: user.id } }
+    });
+
+    channel
+        .on('presence', { event: 'sync' }, () => {
+            const newState = channel.presenceState();
+            const onlineIds = Object.keys(newState);
+            setOnlineUserIds(onlineIds);
+        })
+        .subscribe(async (status) => {
+            if (status === 'SUBSCRIBED') {
+                await channel.track({
+                    user_id: user.id,
+                    online_at: new Date().toISOString(),
+                });
+            }
+        });
+
+    return () => { channel.unsubscribe(); };
+  }, [user?.id]);
+
+  const handleReportPost = (postId: string | null, reportedUserId: string) => {
+    setReportModal({ isOpen: true, postId, reportedUserId });
+  }
+
+  const handleBlockUser = async (targetUserId: string | null) => {
+    if (!user || !targetUserId) return;
+    if (!window.confirm("Are you sure you want to block this user? You won't see their posts and they won't be able to message you.")) return;
+
+    try {
+        const session = await getSafeSession();
+        const token = session?.access_token;
+        
+        const response = await fetch(`${supabaseUrl}/rest/v1/hub_blocks?apikey=${supabaseAnonKey}`, {
+            method: 'POST',
+            headers: { 
+                'apikey': supabaseAnonKey, 
+                'Authorization': `Bearer ${token}`, 
+                'Content-Type': 'application/json' 
+            },
+            body: JSON.stringify({
+                blocker_id: user.id,
+                blocked_id: targetUserId
+            })
+        });
+
+        if (response.ok) {
+            setBlockedByMe(prev => [...prev, targetUserId]);
+            setErrorStatus('User blocked successfully.');
+            setTimeout(() => setErrorStatus(null), 3000);
+            fetchPosts(); // Refresh to hide posts
+        }
+    } catch (err) { console.error('Block failed', err); }
+  }
+
+  const fetchMessages = async (otherUserId: string) => {
+    if (!user) return;
+    try {
+        const session = await getSafeSession();
+        const token = session?.access_token;
+        const res = await fetch(`${supabaseUrl}/rest/v1/hub_private_messages?or=(and(sender_id.eq.${user.id},receiver_id.eq.${otherUserId}),and(sender_id.eq.${otherUserId},receiver_id.eq.${user.id}))&order=created_at.asc&apikey=${supabaseAnonKey}`, {
+            headers: { 'apikey': supabaseAnonKey, 'Authorization': `Bearer ${token}` }
+        });
+        if (res.ok) {
+            setChatMessages(await res.json());
+        }
+    } catch (err) { console.error('Fetch messages failed', err); }
+  }
+
+  const handleSendMessage = async () => {
+    if (!user || !activeChatUserId || !msgInput.trim()) return;
+    const content = msgInput.trim();
+    setMsgInput(''); // Clear immediately for UX
+
+    try {
+        const session = await getSafeSession();
+        const token = session?.access_token;
+        await fetch(`${supabaseUrl}/rest/v1/hub_private_messages?apikey=${supabaseAnonKey}`, {
+            method: 'POST',
+            headers: { 
+                'apikey': supabaseAnonKey, 
+                'Authorization': `Bearer ${token}`, 
+                'Content-Type': 'application/json' 
+            },
+            body: JSON.stringify({
+                sender_id: user.id,
+                receiver_id: activeChatUserId,
+                content: content
+            })
+        });
+        // Realtime will pick it up or we can optimistically append
+        // fetchMessages(activeChatUserId); 
+    } catch (err) { console.error('Send message failed', err); }
+  }
+
+  // Realtime Messages Logic
+  useEffect(() => {
+    if (!user || !activeChatUserId) return;
+
+    fetchMessages(activeChatUserId);
+
+    const channel = supabase.channel(`chat-${activeChatUserId}`)
+        .on('postgres_changes', { 
+            event: 'INSERT', 
+            schema: 'public', 
+            table: 'hub_private_messages'
+        }, (payload) => {
+            const newMsg = payload.new;
+            // Only add if it belongs to current conversation
+            if ((newMsg.sender_id === user.id && newMsg.receiver_id === activeChatUserId) || 
+                (newMsg.sender_id === activeChatUserId && newMsg.receiver_id === user.id)) {
+                setChatMessages(prev => [...prev, newMsg]);
+            }
+        })
+        .subscribe();
+
+    return () => { channel.unsubscribe(); };
+  }, [user?.id, activeChatUserId]);
+
+  const submitReport = async (reason: string) => {
+    if (!user || !reportModal.reportedUserId) return;
+    
     try {
       const session = await getSafeSession();
       const token = session?.access_token;
@@ -707,16 +1091,16 @@ export function ChatHub({ onRunPrompt, view }: { onRunPrompt: (prompt: string) =
             'Content-Type': 'application/json' 
         },
         body: JSON.stringify({
-            post_id: postId,
+            post_id: reportModal.postId,
             reporter_id: user.id,
-            reported_user_id: reportedUserId,
-            reason: 'User reported via Hub interface',
+            reported_user_id: reportModal.reportedUserId,
+            reason: reason,
             status: 'pending'
         })
       });
 
       if (response.ok) {
-          setErrorStatus('Post reported. Thank you for keeping the community safe.');
+          setErrorStatus(reportModal.postId ? 'Post reported.' : 'User reported. Thank you for keeping the community safe.');
           setTimeout(() => setErrorStatus(null), 5000);
       }
     } catch (err) { console.error('Reporting failed', err); }
@@ -726,47 +1110,47 @@ export function ChatHub({ onRunPrompt, view }: { onRunPrompt: (prompt: string) =
     // Only show the input on the Home feed
     if (view !== 'home') return null;
     return (
-        <div className="mb-10 group/creator px-6 md:px-0">
-            <div className="p-8 rounded-[40px] bg-card border border-border/50 shadow-2xl shadow-primary/5 focus-within:border-primary/40 focus-within:shadow-primary/10 transition-all duration-500">
-                <div className="flex gap-6 items-start">
-                    <div className="flex-1 space-y-4">
+        <div className="mb-8 group/creator px-6 md:px-0">
+            <div className="p-5 rounded-3xl bg-card border border-border/50 shadow-lg shadow-primary/5 focus-within:border-primary/30 transition-all duration-300">
+                <div className="flex gap-4 items-start">
+                    <div className="flex-1 space-y-3">
                         <textarea 
                             value={postPrompt}
                             onChange={(e) => setPostPrompt(e.target.value)}
                             placeholder="What's your latest AI discovery?"
-                            className="w-full bg-transparent border-none focus:ring-0 focus:outline-none text-lg font-medium placeholder:text-muted-foreground/30 resize-none hub-textarea-auto min-h-[60px]"
+                            className="w-full bg-transparent border-none focus:ring-0 focus:outline-none text-base font-medium placeholder:text-muted-foreground/30 resize-none hub-textarea-auto min-h-[40px]"
                         />
                         {showPromptField && (
-                            <div className="pt-4 border-t border-border/20 animate-in slide-in-from-top-2 duration-300">
-                                <div className="flex items-center gap-2 mb-3 text-[10px] font-black text-primary uppercase tracking-widest italic opacity-60">
-                                    <Terminal size={14} />
+                            <div className="pt-3 border-t border-border/10 animate-in slide-in-from-top-1 duration-200">
+                                <div className="flex items-center gap-2 mb-2 text-[9px] font-black text-primary uppercase tracking-widest italic opacity-50">
+                                    <Terminal size={12} />
                                     Initial System Prompt
                                 </div>
                                 <textarea 
                                     value={attachedPrompt}
                                     onChange={(e) => setAttachedPrompt(e.target.value)}
                                     placeholder="Paste the prompt that started it all..."
-                                    className="w-full bg-transparent rounded-2xl p-6 border border-border/20 text-sm font-mono focus:border-primary/30 focus:ring-1 focus:ring-primary/20 focus:outline-none transition-all min-h-[120px]"
+                                    className="w-full bg-transparent rounded-xl p-4 border border-border/10 text-xs font-mono focus:border-primary/20 focus:ring-1 focus:ring-primary/10 focus:outline-none transition-all min-h-[100px]"
                                 />
                             </div>
                         )}
-                        <div className="flex items-center justify-between pt-4 border-t border-border/10">
+                        <div className="flex items-center justify-between pt-3 border-t border-border/5">
                             <button 
                                 onClick={() => setShowPromptField(!showPromptField)}
                                 className={cn(
-                                    "flex items-center gap-2 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all outline-none",
+                                    "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all outline-none",
                                     showPromptField ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-white/5 hover:text-foreground"
                                 )}
                             >
-                                <Code size={14} />
+                                <Code size={12} />
                                 {showPromptField ? "Remove Prompt" : "Attach Prompt"}
                             </button>
                             <button 
                                 onClick={handlePost}
                                 disabled={isPosting || !postPrompt.trim()}
-                                className="w-12 h-12 rounded-full bg-primary text-primary-foreground flex items-center justify-center shadow-xl shadow-primary/20 hover:scale-110 active:scale-95 disabled:opacity-50 disabled:scale-100 transition-all outline-none group"
+                                className="w-10 h-10 rounded-full bg-primary text-primary-foreground flex items-center justify-center shadow-lg shadow-primary/10 hover:scale-105 active:scale-95 disabled:opacity-30 disabled:scale-100 transition-all outline-none group"
                             >
-                                {isPosting ? <RefreshCw size={20} className="animate-spin" /> : <ArrowUp size={20} strokeWidth={3} className="group-hover:-translate-y-0.5 transition-transform" />}
+                                {isPosting ? <RefreshCw size={16} className="animate-spin" /> : <ArrowUp size={18} strokeWidth={3} className="group-hover:-translate-y-0.5 transition-transform" />}
                             </button>
                         </div>
                     </div>
@@ -776,53 +1160,6 @@ export function ChatHub({ onRunPrompt, view }: { onRunPrompt: (prompt: string) =
     );
   };
 
-  function MessagesView() {
-    return (
-        <div className="flex h-[calc(100vh-12rem)] gap-4 animate-in fade-in slide-in-from-bottom-4 duration-700">
-            {/* Conversation List */}
-            <div className="w-80 flex-shrink-0 bg-white/5 border border-white/5 rounded-[40px] overflow-hidden flex flex-col">
-                <div className="p-6 border-b border-white/5">
-                    <h3 className="text-lg font-black italic uppercase tracking-tighter">Chats</h3>
-                </div>
-                <div className="flex-1 overflow-y-auto p-4 space-y-2 custom-scrollbar">
-                    <div className="p-4 rounded-3xl bg-primary/10 border border-primary/20 cursor-pointer group">
-                        <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-2xl bg-primary/20 flex items-center justify-center text-primary font-black italic">S</div>
-                            <div className="flex-1 min-w-0">
-                                <div className="text-xs font-black truncate">Support Hub</div>
-                                <div className="text-[10px] text-muted-foreground/50 truncate">Welcome to private messages!</div>
-                            </div>
-                        </div>
-                    </div>
-                    {/* More chats will load here */}
-                </div>
-            </div>
-
-            {/* Active Chat Window */}
-            <div className="flex-1 bg-white/5 border border-white/5 rounded-[40px] overflow-hidden flex flex-col relative">
-                <div className="flex-1 flex flex-col items-center justify-center text-center p-12 opacity-20">
-                    <MessageSquare size={48} className="text-primary mb-4" />
-                    <h3 className="text-2xl font-black uppercase tracking-tighter italic">Select a conversation</h3>
-                    <p className="text-xs font-bold uppercase tracking-widest mt-2 max-w-xs">Pick a friend from your circle to start a private encrypted session.</p>
-                </div>
-
-                {/* Message Input (Placeholder) */}
-                <div className="p-6 bg-black/20 border-t border-white/5">
-                    <div className="relative group">
-                        <input 
-                            disabled
-                            placeholder="Select a friend to message..." 
-                            className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 px-6 text-sm font-medium outline-none transition-all focus:border-primary/40 opacity-50 cursor-not-allowed" 
-                        />
-                        <button disabled className="absolute right-3 top-2.5 p-2 rounded-xl bg-primary text-primary-foreground opacity-50">
-                            <Send size={18} />
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </div>
-    );
-  }
 
   return (
     <div className="flex flex-col h-full bg-background relative overflow-hidden">
@@ -890,7 +1227,21 @@ export function ChatHub({ onRunPrompt, view }: { onRunPrompt: (prompt: string) =
               <RulesView />
           ) : view === 'messages' ? (
               <div className="max-w-6xl mx-auto pt-6 pb-6 px-6 h-full">
-                  <MessagesView />
+                  <MessagesView 
+                    user={user}
+                    friendsList={friendsList}
+                    activeChatUserId={activeChatUserId}
+                    setActiveChatUserId={setActiveChatUserId}
+                    onlineUserIds={onlineUserIds}
+                    handleReportPost={handleReportPost}
+                    handleBlockUser={handleBlockUser}
+                    chatMessages={chatMessages}
+                    msgInput={msgInput}
+                    setMsgInput={setMsgInput}
+                    handleSendMessage={handleSendMessage}
+                    blockedByMe={blockedByMe}
+                    whoBlockedMe={whoBlockedMe}
+                  />
               </div>
           ) : (
             <div className="max-w-5xl mx-auto pt-6 pb-6 px-6 md:px-0">
@@ -983,6 +1334,7 @@ export function ChatHub({ onRunPrompt, view }: { onRunPrompt: (prompt: string) =
                                         onReport={() => handleReportPost(post.id, post.user_id)}
                                         onFollow={handleToggleFollow}
                                         onFriendRequest={handleToggleFriend}
+                                        onBlock={handleBlockUser}
                                     />
                                 );
                             })}
@@ -993,6 +1345,14 @@ export function ChatHub({ onRunPrompt, view }: { onRunPrompt: (prompt: string) =
             </div>
           )}
         </div>
+
+        <HubModal 
+            isOpen={reportModal.isOpen}
+            onClose={() => setReportModal({ ...reportModal, isOpen: false })}
+            onConfirm={submitReport}
+            title={reportModal.postId ? "Report Post" : "Report User"}
+            placeholder="Why are you reporting this? (e.g. Spam, Harassment...)"
+        />
     </div>
   )
 }

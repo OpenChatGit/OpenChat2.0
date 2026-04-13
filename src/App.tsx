@@ -10,22 +10,12 @@ import { useChatWithTools } from './hooks/useChatWithTools'
 import { useProviders } from './hooks/useProviders'
 import { useUpdateChecker } from './hooks/useUpdateChecker'
 import type { ImageAttachment } from './types'
-import { ActivityBar, type ActivityTab } from './components/ActivityBar'
-import { Globe, Users, Sparkles, Zap } from 'lucide-react'
+import { cn } from './lib/utils'
+import { Globe, Sparkles } from 'lucide-react'
 import { ChatHub } from './components/ChatHub'
 import { HubSidebar } from './components/HubSidebar'
+import type { ActivityTab } from './components/ActivityBar'
 
-function HubCard({ title, description, icon }: { title: string; description: string; icon: React.ReactNode }) {
-  return (
-    <div className="p-6 rounded-2xl border bg-white/5 hover:bg-white/10 transition-all border-white/10 group cursor-pointer">
-      <div className="p-3 rounded-xl bg-primary/10 w-fit mb-4 group-hover:scale-110 transition-transform">
-        {icon}
-      </div>
-      <h3 className="text-lg font-semibold mb-1">{title}</h3>
-      <p className="text-sm text-muted-foreground">{description}</p>
-    </div>
-  )
-}
 
 function App() {
   const [activeTab, setActiveTab] = useState<ActivityTab>('chat')
@@ -33,7 +23,7 @@ function App() {
   const [initialSettingsTab, setInitialSettingsTab] = useState<string | undefined>(undefined)
   const [showUpdateModal, setShowUpdateModal] = useState(false)
   const [showUpgradeModal, setShowUpgradeModal] = useState(false)
-  const [hubView, setHubView] = useState<'home' | 'explore' | 'friends' | 'rules'>('home')
+  const [hubView, setHubView] = useState<'home' | 'explore' | 'friends' | 'rules' | 'messages'>('home')
 
   const isSidebarOpen = ['chat', 'hub'].includes(activeTab)
 
@@ -156,38 +146,57 @@ function App() {
 
   return (
     <div className="flex h-screen overflow-hidden text-foreground relative" style={{ backgroundColor: 'var(--color-main)' }}>
-      {/* Activity Bar (VSCode style) */}
-      <ActivityBar 
-        activeTab={activeTab} 
-        onTabChange={handleTabChange} 
-      />
-
-      {/* Left Sidebar (Side Panel) */}
+      {/* Sidebar Container */}
       <div 
-        className="flex-shrink-0 transition-all duration-300 ease-in-out border-r"
+        className="flex-shrink-0 transition-all duration-300 ease-in-out border-r flex flex-col"
         style={{ 
-          width: isSidebarOpen ? '260px' : '0px',
+          width: isSidebarOpen ? '320px' : '0px', // Slightly wider for the new layout
           overflow: 'hidden',
-          borderColor: 'var(--color-border)'
+          borderColor: 'var(--color-border)',
+          backgroundColor: 'var(--color-sidebar)'
         }}
       >
-        {activeTab === 'chat' ? (
-          <Sidebar
-            sessions={sessions}
-            currentSession={currentSession}
-            onNewChat={handleNewChat}
-            onSelectSession={setCurrentSession}
-            onDeleteSession={deleteSession}
-            onRenameSession={updateSessionTitle}
-            onOpenSettings={() => setShowSettings(true)}
-          />
-        ) : activeTab === 'hub' ? (
-          <HubSidebar 
-            activeSubTab={hubView}
-            onSubTabChange={setHubView}
-            onOpenSettings={() => setShowSettings(true)} 
-          />
-        ) : null}
+        {/* New Top Switche (replacing ActivityBar) */}
+        <div className="p-4 border-b border-white/5 flex gap-2">
+            {[
+                { id: 'chat' as ActivityTab, icon: Sparkles, label: 'AI Chat' },
+                { id: 'hub' as ActivityTab, icon: Globe, label: 'Social Hub' }
+            ].map((tab) => (
+                <button
+                    key={tab.id}
+                    onClick={() => handleTabChange(tab.id)}
+                    className={cn(
+                        "flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl transition-all font-bold text-[10px] uppercase tracking-widest",
+                        activeTab === tab.id 
+                            ? "bg-primary text-primary-foreground shadow-lg shadow-primary/10" 
+                            : "text-muted-foreground hover:bg-white/5"
+                    )}
+                >
+                    <tab.icon size={14} />
+                    {tab.label}
+                </button>
+            ))}
+        </div>
+
+        <div className="flex-1 overflow-hidden flex flex-col">
+            {activeTab === 'chat' ? (
+              <Sidebar
+                sessions={sessions}
+                currentSession={currentSession}
+                onNewChat={handleNewChat}
+                onSelectSession={setCurrentSession}
+                onDeleteSession={deleteSession}
+                onRenameSession={updateSessionTitle}
+                onOpenSettings={() => setShowSettings(true)}
+              />
+            ) : activeTab === 'hub' ? (
+              <HubSidebar 
+                activeSubTab={hubView}
+                onSubTabChange={setHubView}
+                onOpenSettings={() => setShowSettings(true)} 
+              />
+            ) : null}
+        </div>
       </div>
 
       {/* Main Content Area */}
