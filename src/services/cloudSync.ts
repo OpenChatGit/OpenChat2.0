@@ -1,11 +1,14 @@
-import { supabase } from '../lib/supabase'
+import { supabase, getSafeSession, getSafeToken } from '../lib/supabase'
 import type { ChatSession, Message } from '../types'
 
 export interface CloudUserSettings {
   user_id: string
   cloud_sync_enabled: boolean
-  rag_credits: number
+  credits: number // Updated from rag_credits to match DB schema
   theme: string
+  role: 'user' | 'verified' | 'admin' | 'owner'
+  is_verified: boolean
+  stack?: string[]
 }
 
 // ==========================================
@@ -18,47 +21,68 @@ const SYNC_URL = `${SUPABASE_PROJECT_URL}/functions/v1/memory-sync/sync`;
 const LOAD_URL = `${SUPABASE_PROJECT_URL}/functions/v1/memory-sync/load`;
 
 async function getJwt() {
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session?.access_token) throw new Error("No access_token in session");
-  return session.access_token;
+  const token = await getSafeToken();
+  if (!token) throw new Error("No access_token in session");
+  return token;
 }
 
 // ==========================================
 // User Settings API
 // ==========================================
 
-export async function fetchUserSettings(): Promise<CloudUserSettings | null> {
-  const { data: { session } } = await supabase.auth.getSession()
-  if (!session?.user) return null
+// ==========================================
+// User Settings API (Native Fetch Bypass)
+// ==========================================
 
-  const { data, error } = await supabase
-    .from('user_settings')
-    .select('*')
-    .eq('user_id', session.user.id)
-    .single()
+export async function fetchUserSettings(userId: string): Promise<CloudUserSettings | null> {
+  try {
+    const token = await getSafeToken();
+    if (!token) return null;
 
-  if (error && error.code !== 'PGRST116') { // PGRST116 is "No rows found"
-    console.error('Error fetching user settings:', error)
-    return null
+    const res = await fetch(`${SUPABASE_PROJECT_URL}/rest/v1/user_settings?user_id=eq.${userId}&select=display_name,avatar_url,role,is_verified,credits,cloud_sync_enabled`, {
+      method: 'GET',
+      headers: {
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      signal: AbortSignal.timeout(4000)
+    });
+
+    if (!res.ok) {
+        if (res.status === 404) return null;
+        throw new Error(`Fetch settings failed: ${res.status}`);
+    }
+
+    const data = await res.json();
+    return data[0] || null;
+  } catch (e) {
+    console.error('[CloudSync] Failed to fetch settings:', e);
+    return null;
   }
-
-  return data as CloudUserSettings
 }
 
-export async function updateUserSettings(settings: Partial<CloudUserSettings>): Promise<void> {
-  const { data: { session } } = await supabase.auth.getSession()
-  if (!session?.user) return
+export async function updateUserSettings(userId: string, settings: Partial<CloudUserSettings>): Promise<void> {
+  try {
+    const token = await getSafeToken();
+    if (!token) throw new Error("No token");
 
-  const { error } = await supabase
-    .from('user_settings')
-    .upsert({ 
-      user_id: session.user.id, 
-      ...settings 
-    }, { onConflict: 'user_id' })
+    const res = await fetch(`${SUPABASE_PROJECT_URL}/rest/v1/user_settings?user_id=eq.${userId}`, {
+      method: 'PATCH',
+      headers: {
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+        'Prefer': 'return=minimal'
+      },
+      body: JSON.stringify(settings),
+      signal: AbortSignal.timeout(5000)
+    });
 
-  if (error) {
-    console.error('Error updating user settings:', error)
-    throw error
+    if (!res.ok) throw new Error(`Update settings failed: ${res.status}`);
+  } catch (e) {
+    console.error('[CloudSync] Failed to update settings:', e);
+    throw e;
   }
 }
 
@@ -147,10 +171,7 @@ export async function loadSessionFromEdge(sessionId: string): Promise<Message[]>
   }));
 }
 
-export async function fetchCloudSessions(): Promise<ChatSession[]> {
-  const { data: { session } } = await supabase.auth.getSession()
-  if (!session?.user) return []
-
+export async function fetchCloudSessions(userId: string): Promise<ChatSession[]> {
   // Join sessions with their messages
   const { data, error } = await supabase
     .from('sessions')
@@ -158,7 +179,7 @@ export async function fetchCloudSessions(): Promise<ChatSession[]> {
       *,
       messages (*)
     `)
-    .eq('user_id', session.user.id)
+    .eq('user_id', userId)
     .order('updated_at', { ascending: false })
 
   if (error) {
@@ -187,15 +208,12 @@ export async function fetchCloudSessions(): Promise<ChatSession[]> {
   }))
 }
 
-export async function deleteCloudSession(sessionId: string): Promise<void> {
-  const { data: { session } } = await supabase.auth.getSession()
-  if (!session?.user) return
-
+export async function deleteCloudSession(sessionId: string, userId: string): Promise<void> {
   const { error } = await supabase
     .from('sessions')
     .delete()
     .eq('id', sessionId)
-    .eq('user_id', session.user.id)
+    .eq('user_id', userId)
 
   if (error) {
     console.error('Error deleting cloud session:', error)

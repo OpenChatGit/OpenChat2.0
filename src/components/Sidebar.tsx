@@ -9,10 +9,9 @@ import {
   Trash2,
   Edit2
 } from 'lucide-react'
-import { useCredits } from '../hooks/useCredits'
-import { ProfileButton } from './ProfileButton'
-import type { ChatSession } from '../types'
 import { cn } from '../lib/utils'
+import type { ChatSession } from '../types'
+import { ProfileButton } from './ProfileButton'
 
 interface SidebarProps {
   sessions: ChatSession[]
@@ -22,7 +21,6 @@ interface SidebarProps {
   onDeleteSession: (sessionId: string) => void
   onRenameSession: (sessionId: string, newTitle: string) => void
   onOpenSettings: () => void
-  onOpenUpgrade: () => void
 }
 
 export function Sidebar({ 
@@ -31,11 +29,9 @@ export function Sidebar({
   onNewChat, 
   onSelectSession, 
   onDeleteSession, 
-  onRenameSession, 
-  onOpenSettings, 
-  onOpenUpgrade
+  onRenameSession,
+  onOpenSettings
 }: SidebarProps) {
-  const { credits } = useCredits()
   const [searchQuery, setSearchQuery] = useState('')
   const [openMenuId, setOpenMenuId] = useState<string | null>(null)
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -153,27 +149,7 @@ export function Sidebar({
       </div>
 
       {/* Footer */}
-      <div className="p-3 border-t mt-auto" style={{ borderColor: 'var(--color-border)' }}>
-        <div className="px-2 mb-4">
-          <div className="p-3 rounded-2xl border bg-muted/30 flex flex-col gap-3" style={{ borderColor: 'var(--color-border)' }}>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Cpu size={14} className="opacity-30" />
-                <span className="text-[10px] font-black opacity-40 uppercase tracking-widest">Tokens</span>
-              </div>
-              <span className="text-xs font-black">
-                {credits !== null ? (credits >= 1000000 ? `${(credits / 1000000).toFixed(1)}M` : `${(credits / 1000).toFixed(0)}k`) : '0'}
-              </span>
-            </div>
-            <button 
-              onClick={onOpenUpgrade}
-              className="w-full h-8 rounded-xl bg-primary text-primary-foreground text-[10px] font-black flex items-center justify-center gap-2 hover:opacity-90 transition-all active:scale-95 uppercase tracking-tighter"
-            >
-              <Zap size={10} fill="currentColor" />
-              Top Up
-            </button>
-          </div>
-        </div>
+      <div className="p-3">
         <ProfileButton onOpenSettings={onOpenSettings} />
       </div>
     </div>

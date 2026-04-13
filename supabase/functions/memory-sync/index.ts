@@ -78,7 +78,47 @@ Deno.serve(async (req: Request) => {
 
     const userId = user.id;
 
-    // 1) Upsert session (by primary key id)
+    // 1) Fetch user role and profile info
+    const { data: userSettings, error: settingsErr } = await supabase
+      .from("user_settings")
+      .select("role, is_verified, display_name, avatar_url")
+      .eq("user_id", userId)
+      .single();
+
+    if (settingsErr && settingsErr.code !== 'PGRST116') {
+        console.error("[MemorySync] Error fetching settings:", settingsErr.message);
+    }
+
+    const userRole = userSettings?.role || 'user';
+    const isVerified = userSettings?.is_verified || false;
+    
+    // 1.1) AUTO-SYNC Profile Metadata (Smart Profile Sync)
+    const metaName = user.user_metadata?.full_name || user.user_metadata?.name || user.user_metadata?.user_name || user.email?.split('@')[0];
+    const metaAvatar = user.user_metadata?.avatar_url || user.user_metadata?.picture;
+    
+    console.log(`[MemorySync] Metadata found - Name: ${metaName}, Avatar: ${!!metaAvatar}`);
+    console.log(`[MemorySync] Current Settings - Name: ${userSettings?.display_name}, Avatar: ${!!userSettings?.avatar_url}`);
+
+    const nameIsEmail = userSettings?.display_name?.includes('@') || userSettings?.display_name === user.email;
+    const shouldUpdateName = !userSettings?.display_name || nameIsEmail;
+    const shouldUpdateAvatar = !userSettings?.avatar_url && !!metaAvatar;
+
+    if (shouldUpdateName || shouldUpdateAvatar) {
+        console.log(`[MemorySync] Upgrading profile for ${userId}...`);
+        const { error: updateErr } = await supabase
+          .from("user_settings")
+          .update({
+            display_name: shouldUpdateName ? metaName : userSettings.display_name,
+            avatar_url: shouldUpdateAvatar ? metaAvatar : userSettings.avatar_url,
+            updated_at: new Date().toISOString()
+          })
+          .eq("user_id", userId);
+
+        if (updateErr) console.error("[MemorySync] Update failed:", updateErr.message);
+        else console.log("[MemorySync] Profile successfully upgraded.");
+    }
+
+    console.log(`[MemorySync] Syncing for user: ${userId} (Role: ${userRole}, Verified: ${isVerified})`);
     const sessionUpsertPayload = {
       id: session_id,
       user_id: userId,
@@ -123,6 +163,10 @@ Deno.serve(async (req: Request) => {
       ok: true,
       session_id,
       user_id: userId,
+      role: userRole,
+      is_verified: isVerified,
+      display_name: userSettings?.display_name || metaName,
+      avatar_url: userSettings?.avatar_url || metaAvatar,
       messages_upserted: messageUpsertPayload.length,
     });
   } catch (e: any) {

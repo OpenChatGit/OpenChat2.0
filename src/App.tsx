@@ -10,12 +10,51 @@ import { useChatWithTools } from './hooks/useChatWithTools'
 import { useProviders } from './hooks/useProviders'
 import { useUpdateChecker } from './hooks/useUpdateChecker'
 import type { ImageAttachment } from './types'
+import { ActivityBar, type ActivityTab } from './components/ActivityBar'
+import { Globe, Users, Sparkles, Zap } from 'lucide-react'
+import { ChatHub } from './components/ChatHub'
+import { HubSidebar } from './components/HubSidebar'
+
+function HubCard({ title, description, icon }: { title: string; description: string; icon: React.ReactNode }) {
+  return (
+    <div className="p-6 rounded-2xl border bg-white/5 hover:bg-white/10 transition-all border-white/10 group cursor-pointer">
+      <div className="p-3 rounded-xl bg-primary/10 w-fit mb-4 group-hover:scale-110 transition-transform">
+        {icon}
+      </div>
+      <h3 className="text-lg font-semibold mb-1">{title}</h3>
+      <p className="text-sm text-muted-foreground">{description}</p>
+    </div>
+  )
+}
 
 function App() {
+  const [activeTab, setActiveTab] = useState<ActivityTab>('chat')
   const [showSettings, setShowSettings] = useState(false)
+  const [initialSettingsTab, setInitialSettingsTab] = useState<string | undefined>(undefined)
   const [showUpdateModal, setShowUpdateModal] = useState(false)
   const [showUpgradeModal, setShowUpgradeModal] = useState(false)
-  const isSidebarOpen = true // Locked open for Pro look, or we can add toggle back
+  const [hubView, setHubView] = useState<'home' | 'explore' | 'friends' | 'rules'>('home')
+
+  const isSidebarOpen = ['chat', 'hub'].includes(activeTab)
+
+  const [pendingPrompt, setPendingPrompt] = useState<string | undefined>(undefined)
+
+  const handleRunPrompt = (prompt: string) => {
+    setPendingPrompt(prompt)
+    setActiveTab('chat')
+  }
+
+  const handleTabChange = (tab: ActivityTab) => {
+    if (tab === 'settings') {
+      setInitialSettingsTab('general')
+      setShowSettings(true)
+    } else if (tab === 'account') {
+      setInitialSettingsTab('account')
+      setShowSettings(true)
+    } else {
+      setActiveTab(tab)
+    }
+  }
 
   // Clean up old unsupported providers from localStorage on app start
   useEffect(() => {
@@ -117,7 +156,13 @@ function App() {
 
   return (
     <div className="flex h-screen overflow-hidden text-foreground relative" style={{ backgroundColor: 'var(--color-main)' }}>
-      {/* Left Sidebar */}
+      {/* Activity Bar (VSCode style) */}
+      <ActivityBar 
+        activeTab={activeTab} 
+        onTabChange={handleTabChange} 
+      />
+
+      {/* Left Sidebar (Side Panel) */}
       <div 
         className="flex-shrink-0 transition-all duration-300 ease-in-out border-r"
         style={{ 
@@ -126,46 +171,68 @@ function App() {
           borderColor: 'var(--color-border)'
         }}
       >
-        <Sidebar
-          sessions={sessions}
-          currentSession={currentSession}
-          onNewChat={handleNewChat}
-          onSelectSession={setCurrentSession}
-          onDeleteSession={deleteSession}
-          onRenameSession={updateSessionTitle}
-          onOpenSettings={() => setShowSettings(true)}
-          onOpenUpgrade={() => setShowUpgradeModal(true)}
-        />
+        {activeTab === 'chat' ? (
+          <Sidebar
+            sessions={sessions}
+            currentSession={currentSession}
+            onNewChat={handleNewChat}
+            onSelectSession={setCurrentSession}
+            onDeleteSession={deleteSession}
+            onRenameSession={updateSessionTitle}
+            onOpenSettings={() => setShowSettings(true)}
+          />
+        ) : activeTab === 'hub' ? (
+          <HubSidebar 
+            activeSubTab={hubView}
+            onSubTabChange={setHubView}
+            onOpenSettings={() => setShowSettings(true)} 
+          />
+        ) : null}
       </div>
 
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col min-w-0 h-full relative" style={{ backgroundColor: 'var(--color-main)' }}>
-        {/* Floating Model Selector */}
-        <div className="absolute top-[14px] left-4 z-50">
-          <ModelSelector
-            providers={providers}
-            selectedProvider={selectedProvider}
-            selectedModel={selectedModel}
-            models={models}
-            onSelectProvider={setSelectedProvider}
-            onSelectModel={setSelectedModel}
-            onLoadModels={loadModels}
-            isLoadingModels={isLoadingModels}
-          />
-        </div>
+        {activeTab === 'chat' ? (
+          <>
+            {/* Floating Model Selector */}
+            <div className="absolute top-[14px] left-4 z-50">
+              <ModelSelector
+                providers={providers}
+                selectedProvider={selectedProvider}
+                selectedModel={selectedModel}
+                models={models}
+                onSelectProvider={setSelectedProvider}
+                onSelectModel={setSelectedModel}
+                onLoadModels={loadModels}
+                isLoadingModels={isLoadingModels}
+              />
+            </div>
 
-        <ChatArea
-          session={currentSession}
-          isGenerating={isGenerating}
-          onSendMessage={handleSendMessage}
-          onSendMessageWithNewChat={handleSendMessageWithNewChat}
-          onStop={cancelGeneration}
-          onRegenerateMessage={(messageId) => selectedProvider && selectedModel && regenerateMessage(messageId, selectedProvider, selectedModel)}
-          autoSearchEnabled={autoSearchEnabled}
-          onToggleAutoSearch={() => setAutoSearchEnabled(!autoSearchEnabled)}
-          getSourceRegistry={getSourceRegistry}
-          registryVersion={registryVersion}
-        />
+            <ChatArea
+              session={currentSession}
+              isGenerating={isGenerating}
+              onSendMessage={handleSendMessage}
+              onSendMessageWithNewChat={handleSendMessageWithNewChat}
+              onStop={cancelGeneration}
+              onRegenerateMessage={(messageId) => selectedProvider && selectedModel && regenerateMessage(messageId, selectedProvider, selectedModel)}
+              autoSearchEnabled={autoSearchEnabled}
+              onToggleAutoSearch={() => setAutoSearchEnabled(!autoSearchEnabled)}
+              getSourceRegistry={getSourceRegistry}
+              registryVersion={registryVersion}
+              pendingPrompt={pendingPrompt}
+              onPromptConsumed={() => setPendingPrompt(undefined)}
+            />
+          </>
+        ) : activeTab === 'hub' ? (
+          <ChatHub view={hubView} onRunPrompt={handleRunPrompt} />
+        ) : (
+          <div className="flex-1 flex flex-col overflow-y-auto">
+             <div className="p-8">
+                <h2 className="text-2xl font-bold mb-4 capitalize">{activeTab}</h2>
+                <p className="text-muted-foreground">Select a section from the activity bar.</p>
+             </div>
+          </div>
+        )}
       </div>
 
       {/* Modals */}
@@ -181,7 +248,11 @@ function App() {
           models={models}
           selectedModel={selectedModel}
           isLoadingModels={isLoadingModels}
-          onClose={() => setShowSettings(false)}
+          defaultTab={initialSettingsTab}
+          onClose={() => {
+            setShowSettings(false)
+            setInitialSettingsTab(undefined)
+          }}
           onSelectProvider={setSelectedProvider}
           onSelectModel={setSelectedModel}
           onUpdateProvider={updateProvider}

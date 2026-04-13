@@ -2,14 +2,36 @@
 
 # OpenChat
 
-![Version](https://img.shields.io/badge/version-0.7.1-blue)
+![Version](https://img.shields.io/badge/version-0.8.0-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey)
 ![Free Forever](https://img.shields.io/badge/free-forever-brightgreen)
 
 OpenChat is a modern, modular LLM chat application featuring a Next-Gen FastAPI Python backend and a React/TypeScript frontend. It connects seamlessly to local AI providers like Ollama and Cloud solutions with integrated CUDA support.
 
-> � ***MAJOR UPDATE - Complete Architecture Overhaul:** This version of OpenChat has been completely rebuilt from the ground up with a modern, modular architecture. The codebase has been significantly refactored for better performance, maintainability, and user experience. Some legacy features have been removed or streamlined as they were no longer necessary with the new architecture. If you're upgrading from an older version, please note that this is essentially a new application with improved design patterns and enhanced capabilities.
+> 🚀 ***SOCIAL HUB UPDATE (0.8.0):** OpenChat has evolved. We are moving from a solo chat tool to a community-driven AI ecosystem. Discover elite prompting techniques, track market trends, and share your AI discoveries in our all-new Social Hub.
+
+## What's New
+
+### Version 0.8.0 - The Social Revolution 🌍
+
+OpenChat 2.0 now features a fully integrated **Social Hub**. It's no longer just a chat app; it's a place to learn, share, and evolve together with the community.
+
+**🔗 Community & Sharing:**
+- **Social Hub** – A dedicated space for sharing AI prompts and responses.
+- **Prompt Forking** – Found a great prompt? Fork it, run it, and improve it. Unique interactions are tracked to show true community value.
+- **Market Trends** – Stay ahead with real-time analysis of trending topics and hashtags.
+
+**⚖️ Transparency & Quality:**
+- **Community Standards** – Clear guidelines for a high-quality, fact-based environment.
+- **Moderation System** – Secure reporting to keep the hub clean and professional.
+
+**🎨 Premium Experience:**
+- **Dual-Mode Viewer** – Switch between Raw and Markdown for complex system prompts.
+- **Custom Tooltips** – Instant, frictionless feedback across the entire UI.
+- **Optimized Layout** – Enhanced scroll architecture for a premium, high-performance desktop feel.
+
+See the full [CHANGELOG.md](CHANGELOG.md) for detailed release notes.
 
 > 💚 **Free Forever Promise:** OpenChat will always remain 100% free and open source. No paid features, no subscriptions, no paywalls - ever. All features are custom-built and freely available to everyone. We accept donations to support development, but every feature will always be accessible to all users at no cost.
 

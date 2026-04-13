@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-04-13
+### Added
+- **Social Hub Launch** – Transitioned from a solo chat experience to a community-powered AI platform.
+- **Dynamic Post Discovery** – Introduced "Explore" and "Home" feeds for discovering and sharing AI prompting techniques.
+- **Unique Fork Tracking** – Implemented a persistent "Prompt Forking" system that tracks unique user interactions to provide accurate community metrics.
+- **Market Trends Engine** – Real-time analysis of the most discussed AI topics and hashtags within the community.
+- **Community Standards View** – Established a formal set of guidelines to ensure high-quality discourse and transparency in moderation.
+- **Dual-Mode Prompt Viewer** – Added a toggle to switch between Markdown-formatted rendering and plain-text 'Raw' views for system prompts.
+- **Moderation Reporting** – Integrated a secure user-reporting mechanism to maintain platform integrity.
+
+### Changed
+- **Premium UI Overhaul** – 
+    - Decoupled header and scroll architecture for a fluid desktop experience.
+    - Implemented a global custom tooltip system for responsive user feedback.
+    - Redesigned prompt boxes with collapsible views and integrated "Run" functionality.
+- **Enhanced Sidebar Navigation** – Cleaned up sidebar UI by removing redundant popups and streamlining community navigation.
+- **Performance Optimization** – Optimized scroll containers to prevent ghost-scrolling and ensure perfect layout alignment.
+
 ## [0.7.1] - 2026-04-12
 ### Changed
 - **Architectural Overhaul** – Streamlined the application to focus on core chat performance and stability.

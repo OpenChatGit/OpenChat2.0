@@ -15,6 +15,8 @@ interface ChatAreaProps {
   onToggleAutoSearch?: () => void
   getSourceRegistry: () => SourceRegistry
   registryVersion?: number
+  pendingPrompt?: string
+  onPromptConsumed?: () => void
 }
 
 export function ChatArea({ 
@@ -27,7 +29,9 @@ export function ChatArea({
   autoSearchEnabled = false,
   onToggleAutoSearch = () => {},
   getSourceRegistry,
-  registryVersion = 0
+  registryVersion = 0,
+  pendingPrompt,
+  onPromptConsumed
 }: ChatAreaProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const [modelCapabilities, setModelCapabilities] = useState<ModelInfo['capabilities']>()
@@ -63,6 +67,8 @@ export function ChatArea({
             onToggleAutoSearch={onToggleAutoSearch}
             modelCapabilities={modelCapabilities}
             onCapabilitiesChange={setModelCapabilities}
+            pendingPrompt={pendingPrompt}
+            onPromptConsumed={onPromptConsumed}
           />
           <p className="text-[11.5px] text-gray-500 text-center mt-2 max-w-md mx-auto leading-relaxed px-4 opacity-80">
             OpenChat 2.0 Web Search is currently in development. AI can make mistakes. <br/> Always cross-check important information for accuracy.
@@ -120,6 +126,8 @@ export function ChatArea({
             onToggleAutoSearch={onToggleAutoSearch}
             modelCapabilities={modelCapabilities}
             onCapabilitiesChange={setModelCapabilities}
+            pendingPrompt={pendingPrompt}
+            onPromptConsumed={onPromptConsumed}
           />
           <p className="text-[11.5px] text-gray-500/80 text-center mt-1 mb-0.5 max-w-md mx-auto leading-relaxed">
             Web Search is in experimental phase. AI can make mistakes. Cross-check facts.

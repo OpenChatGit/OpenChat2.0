@@ -1,6 +1,6 @@
 import { BaseProvider } from './BaseProvider';
 import { SearchOptions, SearchResult, ProviderMetadata, ProviderError, ProviderErrorType } from './types';
-import { supabase, supabaseAnonKey } from '../../../lib/supabase';
+import { supabaseAnonKey, getSafeSession } from '../../../lib/supabase';
 
 /**
  * SupabaseSearchProvider - Connects to Supabase Edge Functions for web search
@@ -19,7 +19,7 @@ export class SupabaseSearchProvider extends BaseProvider {
   protected async executeSearch(query: string, options?: SearchOptions): Promise<SearchResult[]> {
     try {
       // Get the current session to pass the JWT
-      const { data: { session } } = await supabase.auth.getSession();
+      const session = await getSafeSession();
       if (!session) {
         throw new ProviderError(
           ProviderErrorType.AUTHENTICATION_ERROR,
@@ -110,7 +110,7 @@ export class SupabaseSearchProvider extends BaseProvider {
    */
   async validateConfig(): Promise<boolean> {
     try {
-      const { data: { session } } = await supabase.auth.getSession();
+      const session = await getSafeSession();
       return !!session;
     } catch (e) {
       return false;

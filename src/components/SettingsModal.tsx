@@ -30,6 +30,7 @@ interface SettingsModalProps {
 
   // Modal props
   onClose: () => void
+  defaultTab?: string
 }
 
 type Tab = 'settings' | 'websearch' | 'cuda' | 'account' | 'provider-ollama' | 'docs-cloud' | 'docs-pricing'
@@ -48,9 +49,10 @@ export function SettingsModal({
   onTestProvider,
   onLoadModels,
   onUpdateWebSearchSettings,
-  onClose
+  onClose,
+  defaultTab
 }: SettingsModalProps) {
-  const [activeTab, setActiveTab] = useState<Tab>('account')
+  const [activeTab, setActiveTab] = useState<Tab>((defaultTab as Tab) || 'account')
   const [providersExpanded, setProvidersExpanded] = useState(false)
   const [docsExpanded, setDocsExpanded] = useState(false)
 

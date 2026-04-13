@@ -4,6 +4,9 @@ import { cn } from '../lib/utils'
 import { useAuth } from '../hooks/useAuth'
 import { LoginModal } from './LoginModal'
 import { UpgradeModal } from './UpgradeModal'
+import { VerifiedBadge } from './VerifiedBadge'
+import { HubTooltip } from './HubTooltip'
+import { StackBadges } from './StackBadges'
 
 interface ProfileButtonProps {
   onOpenSettings: () => void
@@ -45,7 +48,7 @@ export function ProfileButton({ onOpenSettings }: ProfileButtonProps) {
   const [showLoginModal, setShowLoginModal] = useState(false)
   const [showUpgradeModal, setShowUpgradeModal] = useState(false)
   const dropupRef = useRef<HTMLDivElement>(null)
-  const { user, isAuthenticated, login, logout } = useAuth()
+  const { user, isAuthenticated, isLoading, login, logout } = useAuth()
 
   // Close dropup when clicking outside
   useEffect(() => {
@@ -142,7 +145,7 @@ export function ProfileButton({ onOpenSettings }: ProfileButtonProps) {
         {/* Dropup Menu */}
         {isOpen && (
         <div
-          className="absolute bottom-full left-0 mb-2 w-56 rounded-lg shadow-lg border overflow-hidden"
+          className="absolute bottom-full left-0 mb-4 w-64 rounded-[32px] shadow-2xl border overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-300 z-50"
           style={{
             backgroundColor: 'var(--color-sidebar)',
             borderColor: 'var(--color-dropdown-border)'
@@ -150,39 +153,42 @@ export function ProfileButton({ onOpenSettings }: ProfileButtonProps) {
         >
           {/* User Info Section */}
           {isAuthenticated && user && (
-            <div className="px-4 py-3 border-b" style={{ borderColor: 'var(--color-dropdown-border)' }}>
-              <div className="flex items-center gap-3">
+            <div className="px-6 py-5 border-b" style={{ borderColor: 'var(--color-dropdown-border)' }}>
+              <div className="flex items-center gap-4">
                 <AvatarWithFallback
                   src={user.avatarUrl}
                   alt={user.name}
-                  size="w-10 h-10"
+                  size="w-12 h-12"
                 />
                 <div className="flex-1 min-w-0">
-                  <div className="font-medium text-sm truncate">{user.fullname}</div>
-                  <div className="text-xs text-muted-foreground truncate">@{user.name}</div>
+                  <div className="flex items-center gap-2 min-w-0 mb-1">
+                    <div className="font-black text-sm truncate italic">{user.fullname}</div>
+                    <VerifiedBadge role={user.role} />
+                  </div>
+                  <StackBadges stack={user.stack} className="mt-1" />
                 </div>
               </div>
             </div>
           )}
 
           {/* Menu Items */}
-          <div className="py-1 px-2">
+          <div className="py-3 px-3">
             {menuItems.map((item, index) => (
               <button
                 key={index}
                 onClick={item.onClick}
                 className={cn(
-                  'w-full flex items-center gap-3 px-3 py-2.5 text-sm transition-colors rounded-lg',
+                  'w-full flex items-center gap-4 px-4 py-3 text-xs font-black uppercase tracking-tight transition-all rounded-2xl relative group/item italic',
                   item.highlight 
-                    ? 'bg-gradient-to-r from-blue-500/20 to-purple-500/20 font-semibold hover:from-blue-500/30 hover:to-purple-500/30'
-                    : 'hover:bg-white/10',
-                  item.danger && 'text-red-400'
+                    ? 'bg-gradient-to-r from-primary/10 to-purple-500/10 hover:from-primary/20 hover:to-purple-500/20'
+                    : 'hover:bg-white/5',
+                  item.danger && 'text-red-400 hover:bg-red-400/10'
                 )}
               >
-                <item.icon className={cn('w-4 h-4', item.highlight && 'text-blue-400')} />
+                <item.icon className={cn('w-4 h-4', item.highlight && 'text-primary')} />
                 <span>{item.label}</span>
                 {item.highlight && (
-                  <span className="ml-auto text-xs px-2 py-0.5 rounded-full bg-blue-500 text-white">
+                  <span className="ml-auto text-[8px] px-2 py-0.5 rounded-full bg-primary text-primary-foreground font-black uppercase">
                     New
                   </span>
                 )}
@@ -192,45 +198,68 @@ export function ProfileButton({ onOpenSettings }: ProfileButtonProps) {
         </div>
       )}
 
-      {/* Profile Button */}
-      <button
-        onClick={() => setIsOpen(!isOpen)}
-        className={cn(
-          'w-full flex items-center gap-3 p-3 rounded-lg transition-colors',
-          'hover:bg-white/10',
-          isOpen && 'bg-white/10'
-        )}
-        title="Account"
-      >
-        {isAuthenticated && user ? (
-          <>
-            <AvatarWithFallback
-              src={user.avatarUrl}
-              alt={user.name}
-              size="w-8 h-8"
-            />
-            <div className="flex-1 text-left min-w-0">
-              <div className="text-sm font-medium truncate">{user.fullname}</div>
-              <div className="text-xs text-muted-foreground truncate">
-                {user.isPro ? 'Pro' : 'Free'} Plan
+      {/* Profile Button with Premium Tooltip */}
+      <HubTooltip text={isAuthenticated ? "Account" : "Authenticate"} position="top" className="w-full">
+        <button
+          onClick={() => !isLoading && setIsOpen(!isOpen)}
+          className={cn(
+            'w-full flex items-center gap-4 p-4 rounded-[32px] transition-all border border-transparent shadow-sm',
+            'hover:bg-white/5 hover:border-white/5 hover:shadow-xl',
+            isOpen && 'bg-white/5 border-white/5 shadow-xl',
+            isLoading && 'opacity-50 cursor-wait'
+          )}
+          disabled={isLoading}
+        >
+          {isLoading ? (
+            <>
+              <div className="w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0 bg-white/5">
+                 <div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
               </div>
-            </div>
-          </>
-        ) : (
-          <>
-            <div
-              className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0"
-              style={{ backgroundColor: 'rgba(255, 255, 255, 0.1)' }}
-            >
-              <User className="w-4 h-4" />
-            </div>
-            <div className="flex-1 text-left min-w-0">
-              <div className="text-sm font-medium truncate">Guest</div>
-              <div className="text-xs text-muted-foreground truncate">Not logged in</div>
-            </div>
-          </>
-        )}
-      </button>
+              <div className="flex-1 text-left min-w-0">
+                 <div className="text-xs font-black uppercase tracking-widest animate-pulse italic">Syncing...</div>
+                 <div className="text-[9px] text-muted-foreground/30 font-medium italic">Please wait</div>
+              </div>
+            </>
+          ) : isAuthenticated && user ? (
+            <>
+              <div className="relative flex-shrink-0">
+                  <AvatarWithFallback
+                    src={user.avatarUrl}
+                    alt={user.name}
+                    size="w-10 h-10"
+                  />
+                  <div className="absolute -bottom-1 -right-1 w-3.5 h-3.5 bg-emerald-500 rounded-full border-2 border-[var(--color-sidebar)]" />
+              </div>
+              <div className="flex-1 text-left min-w-0">
+                <div className="flex items-center gap-2 min-w-0">
+                  <div className="text-sm font-black truncate tracking-tight italic">{user.fullname}</div>
+                  <VerifiedBadge role={user.role} />
+                </div>
+                <div className="flex items-center gap-2">
+                   <div className="text-[9px] text-muted-foreground/40 truncate font-black uppercase tracking-widest italic">
+                      {user.role} Status
+                   </div>
+                   {user.stack && user.stack.length > 0 && (
+                       <StackBadges stack={user.stack} size={8} />
+                   )}
+                </div>
+              </div>
+            </>
+          ) : (
+            <>
+              <div
+                className="w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0 bg-white/5 border border-white/5 shadow-inner"
+              >
+                <User className="w-5 h-5 opacity-40" />
+              </div>
+              <div className="flex-1 text-left min-w-0">
+                <div className="text-xs font-black uppercase tracking-widest italic">Guest</div>
+                <div className="text-[9px] text-muted-foreground/30 font-medium italic">Not identified</div>
+              </div>
+            </>
+          )}
+        </button>
+      </HubTooltip>
       </div>
     </>
   )

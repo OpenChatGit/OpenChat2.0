@@ -1,11 +1,10 @@
 import { BaseProvider } from './base'
 import type { ProviderConfig, ModelInfo, ChatCompletionRequest } from '../types'
-import { createClient } from '@supabase/supabase-js'
+import { getSafeSession } from '../lib/supabase'
 import { OpenRouter } from '@openrouter/sdk'
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || ''
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || ''
-const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
 
 export class SupabasePremiumProvider extends BaseProvider {
   constructor(config: ProviderConfig) {
@@ -27,9 +26,9 @@ export class SupabasePremiumProvider extends BaseProvider {
     } catch (error) {
       console.warn('Could not load dynamic cloud models, using fallback list', error)
       return [
-        { name: 'Claude 3.5 Sonnet', id: 'anthropic/claude-3-5-sonnet', size: 'Vast', capabilities: { vision: true, reasoning: true } },
-        { name: 'GPT-4o', id: 'openai/gpt-4o', size: 'Vast', capabilities: { vision: true, reasoning: true } },
-        { name: 'Gemini Pro 1.5', id: 'google/gemini-pro-1.5', size: 'Universal', capabilities: { vision: true, reasoning: true } }
+        { name: 'Claude 3.5 Sonnet', id: 'anthropic/claude-3-5-sonnet', provider: 'supabase-premium', size: 'Vast', capabilities: { vision: true, reasoning: true } },
+        { name: 'GPT-4o', id: 'openai/gpt-4o', provider: 'supabase-premium', size: 'Vast', capabilities: { vision: true, reasoning: true } },
+        { name: 'Gemini Pro 1.5', id: 'google/gemini-pro-1.5', provider: 'supabase-premium', size: 'Universal', capabilities: { vision: true, reasoning: true } }
       ]
     }
   }
@@ -39,7 +38,7 @@ export class SupabasePremiumProvider extends BaseProvider {
     onChunk?: (content: string, toolCalls?: any[]) => void,
     signal?: AbortSignal
   ): Promise<string | any[]> {
-    const { data: { session } } = await supabase.auth.getSession()
+    const session = await getSafeSession()
     const userToken = session?.access_token
 
     if (!userToken) {
@@ -57,7 +56,7 @@ export class SupabasePremiumProvider extends BaseProvider {
         headers.set('Authorization', `Bearer ${SUPABASE_ANON_KEY}`)
         return fetch(url, { ...init, headers, signal })
       }
-    })
+    } as any)
 
     if (!onChunk) {
       const response = await (or as any).chat.send({
@@ -121,7 +120,7 @@ export class SupabasePremiumProvider extends BaseProvider {
   }
 
   async testConnection(): Promise<boolean> {
-    const { data: { session } } = await supabase.auth.getSession()
+    const session = await getSafeSession()
     return !!session
   }
 }

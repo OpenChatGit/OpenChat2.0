@@ -1,9 +1,5 @@
 import { useState, useEffect } from 'react'
-import { createClient } from '@supabase/supabase-js'
-
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || ''
-const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || ''
-const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
+import { supabase, getSafeSession } from '../lib/supabase'
 
 export function useCredits() {
   const [credits, setCredits] = useState<number | null>(null)
@@ -11,7 +7,7 @@ export function useCredits() {
 
   const fetchCredits = async () => {
     setIsLoading(true)
-    const { data: { session } } = await supabase.auth.getSession()
+    const session = await getSafeSession()
     if (!session?.user) {
       setCredits(null)
       setIsLoading(false)

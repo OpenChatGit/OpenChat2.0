@@ -27,6 +27,8 @@ interface ChatInputProps {
   onToggleAutoSearch?: () => void
   modelCapabilities?: ModelInfo['capabilities']
   onCapabilitiesChange?: (capabilities: ModelInfo['capabilities']) => void
+  pendingPrompt?: string
+  onPromptConsumed?: () => void
 }
 
 export function ChatInput({
@@ -41,6 +43,8 @@ export function ChatInput({
   onToggleAutoSearch = () => { },
   modelCapabilities,
   onCapabilitiesChange,
+  pendingPrompt,
+  onPromptConsumed
 }: ChatInputProps) {
   // Load input and images from localStorage on mount
   const [input, setInput] = useState(() => {
@@ -64,6 +68,12 @@ export function ChatInput({
   const [uploadStatus, setUploadStatus] = useState<string>('')
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const isMountedRef = useRef(false)
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => { isMountedRef.current = false; };
+  }, []);
   const { showError, showInfo } = useToast()
 
   // Save input to localStorage whenever it changes
@@ -91,6 +101,25 @@ export function ChatInput({
       console.error('Failed to save attached images:', error)
     }
   }, [attachedImages])
+
+  // Handle incoming prompt from Hub
+  useEffect(() => {
+    if (pendingPrompt && isMountedRef.current) {
+      console.log('[ChatInput] Consuming pending prompt from Hub');
+      setInput(pendingPrompt);
+      onPromptConsumed?.();
+      
+      // Fast focus with a tiny delay to ensure render
+      setTimeout(() => {
+        textareaRef.current?.focus();
+        // Move cursor to end
+        if (textareaRef.current) {
+          textareaRef.current.selectionStart = textareaRef.current.value.length;
+          textareaRef.current.selectionEnd = textareaRef.current.value.length;
+        }
+      }, 100);
+    }
+  }, [pendingPrompt]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()

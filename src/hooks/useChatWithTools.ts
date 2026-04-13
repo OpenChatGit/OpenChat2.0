@@ -9,11 +9,9 @@ import { loadWebSearchSettings, saveWebSearchSettings } from '../lib/web-search/
 import { Tokenizer } from '../lib/tokenizer'
 import { pushSessionToEdge as cloudPush, loadSessionFromEdge as cloudLoad } from '../services/cloudSync'
 import { ChatEngine } from '../lib/langchain/ChatEngine'
-import { createClient } from '@supabase/supabase-js'
+import { getSafeSession } from '../lib/supabase'
 
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || ''
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || ''
-const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
 
 // Default system prompt constant
 const getSystemPrompt = () => `You are OpenChat 2.0, a highly capable and friendly AI assistant.
@@ -690,7 +688,7 @@ Format: {title}Your Summary{/title}`
 
       abortControllerRef.current = new AbortController()
 
-      const { data: { session: authSession } } = await supabase.auth.getSession();
+      const authSession = await getSafeSession();
       const userToken = authSession?.access_token;
 
       const chatEngine = new ChatEngine({
