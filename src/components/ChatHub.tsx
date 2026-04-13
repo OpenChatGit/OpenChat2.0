@@ -1,4 +1,4 @@
-import { Heart, MessageCircle, Share, Play, Code, Zap, Copy, Trash2, ShieldCheck, Globe, Home as HomeIcon, Terminal, Clock, Flame, Compass, RefreshCw, MoreHorizontal, Flag, AlertTriangle, ChevronDown, ChevronUp, Check, Maximize2, Scale, Info, BookOpen, UserCheck, Users, FlameKindling, Gavel, Eye, FileText, Sparkles, ArrowUp } from 'lucide-react'
+import { MessageSquare, MessageCircle, Send, Play, Code, Copy, Trash2, ShieldCheck, Home as HomeIcon, Terminal, Flame, Compass, RefreshCw, MoreHorizontal, Flag, ChevronUp, Check, Maximize2, UserCheck, Users, Eye, ArrowUp, Heart, Zap, Share } from 'lucide-react'
 import { useState, useEffect, useRef } from 'react'
 import { cn } from '../lib/utils'
 import { VerifiedBadge, type UserRole } from './VerifiedBadge'
@@ -48,7 +48,7 @@ const slugify = (text: any): string => {
   return str.toLowerCase().replace(/[^\w\s-]/g, '').replace(/\s+/g, '-');
 };
 
-function AIHubCard({ id, user, content, timestamp, stats, isLiked, isForked, isFollowing, isFriend, isModerator, onRun, onDelete, onLike, onFork, onReport, onFollow, onFriendRequest }: HubCardProps) {
+function AIHubCard({ id, user, content, timestamp, stats, isLiked, isForked, isFollowing, isFriend, isModerator, currentUserId, onRun, onDelete, onLike, onFork, onReport, onFollow, onFriendRequest }: HubCardProps & { currentUserId?: string }) {
   const [showDropdown, setShowDropdown] = useState(false)
   const [showConfirmDelete, setShowConfirmDelete] = useState(false)
   const [isExpanded, setIsExpanded] = useState(false)
@@ -130,7 +130,7 @@ function AIHubCard({ id, user, content, timestamp, stats, isLiked, isForked, isF
             </div>
             
             <div className="flex items-center gap-2 relative" ref={dropdownRef}>
-                {onFollow && user.id !== id && (
+                {onFollow && user.id !== currentUserId && (
                     <button 
                         onClick={(e) => {
                             e.stopPropagation();
@@ -158,7 +158,7 @@ function AIHubCard({ id, user, content, timestamp, stats, isLiked, isForked, isF
 
                 {showDropdown && (
                     <div className="absolute right-0 mt-2 top-full w-48 rounded-2xl bg-popover border border-border shadow-2xl p-1.5 z-20 animate-in fade-in zoom-in-95 duration-200">
-                        {onFriendRequest && user.id !== id && (
+                        {onFriendRequest && user.id !== currentUserId && (
                             <button 
                                 onClick={(e) => {
                                     e.stopPropagation();
@@ -190,7 +190,7 @@ function AIHubCard({ id, user, content, timestamp, stats, isLiked, isForked, isF
                             Report Post
                         </button>
                         
-                        {isModerator && (
+                        {(isModerator || user.id === currentUserId) && (
                             <button 
                                 onClick={() => {
                                     if (showConfirmDelete) {
@@ -389,7 +389,9 @@ function RulesView() {
     );
 }
 
-export function ChatHub({ onRunPrompt, view }: { onRunPrompt: (prompt: string) => void, view: 'home' | 'explore' | 'friends' | 'rules' }) {
+type HubView = 'home' | 'explore' | 'rules' | 'friends' | 'messages';
+
+export function ChatHub({ onRunPrompt, view }: { onRunPrompt: (prompt: string) => void, view: HubView }) {
   const { user } = useAuth()
   const [posts, setPosts] = useState<any[]>([])
   const [isLoading, setIsLoading] = useState(true)
@@ -405,27 +407,28 @@ export function ChatHub({ onRunPrompt, view }: { onRunPrompt: (prompt: string) =
   const [friendsList, setFriendsList] = useState<any[]>([])
   const [friendRequests, setFriendRequests] = useState<any[]>([])
 
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+  const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
   const fetchPosts = async () => {
     try {
       setIsLoading(true)
       const session = await getSafeSession()
       const token = session?.access_token
-      if (!token) return
+      if (!token) {
+          setIsLoading(false);
+          return;
+      }
 
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
-      const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
-
-      // DIRECT SUPABASE REQUEST: We fetch fresh data from the API to bypass local caching
       let followIds: string[] = []
-      let fCtx: any[] = []
       
       if (user?.id) {
           try {
               const [followRes, friendRes] = await Promise.all([
-                  fetch(`${supabaseUrl}/rest/v1/hub_follows?follower_id=eq.${user.id}&select=following_id`, {
+                  fetch(`${supabaseUrl}/rest/v1/hub_follows?follower_id=eq.${user.id}&select=following_id&apikey=${supabaseAnonKey}`, {
                       headers: { 'apikey': supabaseAnonKey, 'Authorization': `Bearer ${token}` }
                   }),
-                  fetch(`${supabaseUrl}/rest/v1/hub_friends?or=(user_id.eq.${user.id},friend_id.eq.${user.id})&select=user_id,friend_id,status`, {
+                  fetch(`${supabaseUrl}/rest/v1/hub_friends?or=(user_id.eq.${user.id},friend_id.eq.${user.id})&select=user_id,friend_id,status&apikey=${supabaseAnonKey}`, {
                       headers: { 'apikey': supabaseAnonKey, 'Authorization': `Bearer ${token}` }
                   })
               ]);
@@ -435,7 +438,7 @@ export function ChatHub({ onRunPrompt, view }: { onRunPrompt: (prompt: string) =
                   setFollowedIds(followIds);
               }
               if (friendRes.ok) {
-                  fCtx = await friendRes.json();
+                  const fCtx = await friendRes.json();
                   setFriendContext(fCtx);
               }
           } catch (socialErr) { console.warn(socialErr); }
@@ -444,29 +447,28 @@ export function ChatHub({ onRunPrompt, view }: { onRunPrompt: (prompt: string) =
       if (view === 'friends' && user?.id) {
           try {
               if (friendsTab === 'list') {
-                  const friendsShipRes = await fetch(`${supabaseUrl}/rest/v1/hub_friends?user_id=eq.${user.id}&status=eq.accepted&select=friend_id`, {
+                  const friendsShipRes = await fetch(`${supabaseUrl}/rest/v1/hub_friends?or=(user_id.eq.${user.id},friend_id.eq.${user.id})&status=eq.accepted&select=user_id,friend_id&apikey=${supabaseAnonKey}`, {
                       headers: { 'apikey': supabaseAnonKey, 'Authorization': `Bearer ${token}` }
                   });
                   if (friendsShipRes.ok) {
                       const shipData = await friendsShipRes.json();
-                      const friendIds = shipData.map((s: any) => s.friend_id);
+                      const friendIds = shipData.map((s: any) => s.user_id === user.id ? s.friend_id : s.user_id);
                       if (friendIds.length > 0) {
-                          const profilesRes = await fetch(`${supabaseUrl}/rest/v1/user_settings?user_id=in.(${friendIds.join(',')})&select=*`, {
+                          const profilesRes = await fetch(`${supabaseUrl}/rest/v1/user_settings?user_id=in.(${friendIds.join(',')})&select=*&apikey=${supabaseAnonKey}`, {
                               headers: { 'apikey': supabaseAnonKey, 'Authorization': `Bearer ${token}` }
                           });
                           if (profilesRes.ok) setFriendsList(await profilesRes.json());
                       } else setFriendsList([]);
                   }
               } else {
-                  // Pending Requests (Sent to ME)
-                  const requestsRes = await fetch(`${supabaseUrl}/rest/v1/hub_friends?friend_id=eq.${user.id}&status=eq.pending&select=user_id`, {
+                  const requestsRes = await fetch(`${supabaseUrl}/rest/v1/hub_friends?friend_id=eq.${user.id}&status=eq.pending&select=user_id&apikey=${supabaseAnonKey}`, {
                       headers: { 'apikey': supabaseAnonKey, 'Authorization': `Bearer ${token}` }
                   });
                   if (requestsRes.ok) {
                       const reqData = await requestsRes.json();
                       const fromIds = reqData.map((r: any) => r.user_id);
                       if (fromIds.length > 0) {
-                          const profilesRes = await fetch(`${supabaseUrl}/rest/v1/user_settings?user_id=in.(${fromIds.join(',')})&select=*`, {
+                          const profilesRes = await fetch(`${supabaseUrl}/rest/v1/user_settings?user_id=in.(${fromIds.join(',')})&select=*&apikey=${supabaseAnonKey}`, {
                               headers: { 'apikey': supabaseAnonKey, 'Authorization': `Bearer ${token}` }
                           });
                           if (profilesRes.ok) setFriendRequests(await profilesRes.json());
@@ -477,22 +479,20 @@ export function ChatHub({ onRunPrompt, view }: { onRunPrompt: (prompt: string) =
           finally { setIsLoading(false); return; }
       }
 
-      // Pre-fetch requests for counter even if not on friends view
+      // Pre-fetch requests for counter
       if (user?.id && view !== 'friends') {
-          fetch(`${supabaseUrl}/rest/v1/hub_friends?friend_id=eq.${user.id}&status=eq.pending&select=user_id`, {
+          fetch(`${supabaseUrl}/rest/v1/hub_friends?friend_id=eq.${user.id}&status=eq.pending&select=user_id&apikey=${supabaseAnonKey}`, {
               headers: { 'apikey': supabaseAnonKey, 'Authorization': `Bearer ${token}` }
           }).then(res => res.json()).then(data => setFriendRequests(data)).catch(() => {});
       }
 
       const order = activeTab === 'popular' ? 'likes_count.desc' : 'created_at.desc'
-      let url = `${supabaseUrl}/rest/v1/hub_posts?select=*,user:user_settings(display_name,avatar_url,role,stack),hub_post_likes(user_id),hub_post_forks(user_id)&order=${order}`
+      let url = `${supabaseUrl}/rest/v1/hub_posts?select=*,user:user_settings(display_name,avatar_url,role,stack),hub_post_likes(user_id),hub_post_forks(user_id)&order=${order}&apikey=${supabaseAnonKey}`
       if (activeTab === 'popular') url += '&likes_count=gt.0'
-
       if (view === 'home' && user?.id) {
           const filterIds = [user.id, ...followIds];
           url += `&user_id=in.(${filterIds.join(',')})`;
       }
-
       if (activeTab === 'prompts') url += '&response_preview=not.is.null'
 
       const response = await fetch(url, {
@@ -504,8 +504,12 @@ export function ChatHub({ onRunPrompt, view }: { onRunPrompt: (prompt: string) =
           setPosts(await response.json());
           setErrorStatus(null);
       }
-    } catch (err) { setErrorStatus('Connection unstable.'); }
-    finally { setIsLoading(false); }
+    } catch (err) { 
+        setErrorStatus('Connection unstable.');
+        console.error(err);
+    } finally { 
+        setIsLoading(false); 
+    }
   }
 
   useEffect(() => { 
@@ -521,10 +525,8 @@ export function ChatHub({ onRunPrompt, view }: { onRunPrompt: (prompt: string) =
       const session = await getSafeSession();
       const token = session?.access_token;
       if (!token) return;
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-      const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-      const response = await fetch(`${supabaseUrl}/rest/v1/hub_posts`, {
+      const response = await fetch(`${supabaseUrl}/rest/v1/hub_posts?apikey=${supabaseAnonKey}`, {
         method: 'POST',
         headers: { 'apikey': supabaseAnonKey, 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -547,14 +549,12 @@ export function ChatHub({ onRunPrompt, view }: { onRunPrompt: (prompt: string) =
     try {
       const session = await getSafeSession();
       const token = session?.access_token;
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-      const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
       if (currentlyLiked) {
-        await fetch(`${supabaseUrl}/rest/v1/hub_post_likes?post_id=eq.${postId}&user_id=eq.${user.id}`, {
+        await fetch(`${supabaseUrl}/rest/v1/hub_post_likes?post_id=eq.${postId}&user_id=eq.${user.id}&apikey=${supabaseAnonKey}`, {
             method: 'DELETE', headers: { 'apikey': supabaseAnonKey, 'Authorization': `Bearer ${token}` }
         });
       } else {
-        await fetch(`${supabaseUrl}/rest/v1/hub_post_likes`, {
+        await fetch(`${supabaseUrl}/rest/v1/hub_post_likes?apikey=${supabaseAnonKey}`, {
             method: 'POST', headers: { 'apikey': supabaseAnonKey, 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
             body: JSON.stringify({ post_id: postId, user_id: user.id })
         });
@@ -568,9 +568,7 @@ export function ChatHub({ onRunPrompt, view }: { onRunPrompt: (prompt: string) =
     try {
       const session = await getSafeSession();
       const token = session?.access_token;
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-      const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-      await fetch(`${supabaseUrl}/rest/v1/rpc/increment_fork_count`, {
+      await fetch(`${supabaseUrl}/rest/v1/rpc/increment_fork_count?apikey=${supabaseAnonKey}`, {
         method: 'POST', headers: { 'apikey': supabaseAnonKey, 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ post_id_val: postId, user_id_val: user.id })
       });
@@ -583,14 +581,12 @@ export function ChatHub({ onRunPrompt, view }: { onRunPrompt: (prompt: string) =
     try {
       const session = await getSafeSession();
       const token = session?.access_token;
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-      const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
       if (currentlyFollowing) {
-        await fetch(`${supabaseUrl}/rest/v1/hub_follows?follower_id=eq.${user.id}&following_id=eq.${targetId}`, {
+        await fetch(`${supabaseUrl}/rest/v1/hub_follows?follower_id=eq.${user.id}&following_id=eq.${targetId}&apikey=${supabaseAnonKey}`, {
             method: 'DELETE', headers: { 'apikey': supabaseAnonKey, 'Authorization': `Bearer ${token}` }
         });
       } else {
-        await fetch(`${supabaseUrl}/rest/v1/hub_follows`, {
+        await fetch(`${supabaseUrl}/rest/v1/hub_follows?apikey=${supabaseAnonKey}`, {
             method: 'POST', headers: { 'apikey': supabaseAnonKey, 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
             body: JSON.stringify({ follower_id: user.id, following_id: targetId })
         });
@@ -604,15 +600,14 @@ export function ChatHub({ onRunPrompt, view }: { onRunPrompt: (prompt: string) =
     try {
       const session = await getSafeSession();
       const token = session?.access_token;
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-      const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
       if (currentStatus === 'none') {
-        await fetch(`${supabaseUrl}/rest/v1/hub_friends`, {
+        await fetch(`${supabaseUrl}/rest/v1/hub_friends?apikey=${supabaseAnonKey}`, {
             method: 'POST', headers: { 'apikey': supabaseAnonKey, 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
             body: JSON.stringify({ user_id: user.id, friend_id: targetId, status: 'pending' })
         });
       } else {
-        await fetch(`${supabaseUrl}/rest/v1/hub_friends?user_id=eq.${user.id}&friend_id=eq.${targetId}`, {
+        // Unfriend/Remove: Delete BOTH directions in one call
+        await fetch(`${supabaseUrl}/rest/v1/hub_friends?or=(and(user_id.eq.${user.id},friend_id.eq.${targetId}),and(user_id.eq.${targetId},friend_id.eq.${user.id}))&apikey=${supabaseAnonKey}`, {
             method: 'DELETE', headers: { 'apikey': supabaseAnonKey, 'Authorization': `Bearer ${token}` }
         });
       }
@@ -626,14 +621,12 @@ export function ChatHub({ onRunPrompt, view }: { onRunPrompt: (prompt: string) =
     const backup = [...friendRequests]
     try {
       // Optimistic update
-      setFriendRequests(prev => prev.filter(req => req.user_id !== fromUserId));
+      setFriendRequests(prev => prev.filter((req: any) => req.user_id !== fromUserId));
 
       const session = await getSafeSession();
       const token = session?.access_token;
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-      const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
       
-      const res1 = await fetch(`${supabaseUrl}/rest/v1/hub_friends?user_id=eq.${fromUserId}&friend_id=eq.${user.id}`, {
+      const res1 = await fetch(`${supabaseUrl}/rest/v1/hub_friends?user_id=eq.${fromUserId}&friend_id=eq.${user.id}&apikey=${supabaseAnonKey}`, {
           method: 'PATCH', 
           headers: { 'apikey': supabaseAnonKey, 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
           body: JSON.stringify({ status: 'accepted' })
@@ -641,9 +634,14 @@ export function ChatHub({ onRunPrompt, view }: { onRunPrompt: (prompt: string) =
       
       if (!res1.ok) throw new Error('Failed to accept');
 
-      await fetch(`${supabaseUrl}/rest/v1/hub_friends`, {
+      await fetch(`${supabaseUrl}/rest/v1/hub_friends?apikey=${supabaseAnonKey}`, {
           method: 'POST',
-          headers: { 'apikey': supabaseAnonKey, 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+          headers: { 
+              'apikey': supabaseAnonKey, 
+              'Authorization': `Bearer ${token}`, 
+              'Content-Type': 'application/json',
+              'Prefer': 'resolution=merge-duplicates'
+          },
           body: JSON.stringify({ user_id: user.id, friend_id: fromUserId, status: 'accepted' })
       });
       
@@ -666,10 +664,8 @@ export function ChatHub({ onRunPrompt, view }: { onRunPrompt: (prompt: string) =
 
       const session = await getSafeSession();
       const token = session?.access_token;
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-      const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
       
-      const response = await fetch(`${supabaseUrl}/rest/v1/hub_friends?user_id=eq.${fromUserId}&friend_id=eq.${user.id}`, {
+      const response = await fetch(`${supabaseUrl}/rest/v1/hub_friends?or=(and(user_id.eq.${user.id},friend_id.eq.${fromUserId}),and(user_id.eq.${fromUserId},friend_id.eq.${user.id}))&apikey=${supabaseAnonKey}`, {
           method: 'DELETE', 
           headers: { 'apikey': supabaseAnonKey, 'Authorization': `Bearer ${token}` }
       });
@@ -690,16 +686,14 @@ export function ChatHub({ onRunPrompt, view }: { onRunPrompt: (prompt: string) =
     try {
       const session = await getSafeSession();
       const token = session?.access_token;
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-      const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-      await fetch(`${supabaseUrl}/rest/v1/hub_posts?id=eq.${postId}`, {
+      await fetch(`${supabaseUrl}/rest/v1/hub_posts?id=eq.${postId}&apikey=${supabaseAnonKey}`, {
         method: 'DELETE', headers: { 'apikey': supabaseAnonKey, 'Authorization': `Bearer ${token}` }
       });
       fetchPosts();
     } catch (err) { console.error(err); }
   }
 
-  const handleReportPost = (id: string, authorId: string) => { console.log('Reported', id); };
+  const handleReportPost = (id: string) => { console.log('Reported', id); };
 
   const renderComposer = () => {
     // Only show the input on the Home feed
@@ -753,6 +747,54 @@ export function ChatHub({ onRunPrompt, view }: { onRunPrompt: (prompt: string) =
             </div>
         </div>
     );
+  };
+
+  function MessagesView() {
+    return (
+        <div className="flex h-[calc(100vh-12rem)] gap-4 animate-in fade-in slide-in-from-bottom-4 duration-700">
+            {/* Conversation List */}
+            <div className="w-80 flex-shrink-0 bg-white/5 border border-white/5 rounded-[40px] overflow-hidden flex flex-col">
+                <div className="p-6 border-b border-white/5">
+                    <h3 className="text-lg font-black italic uppercase tracking-tighter">Chats</h3>
+                </div>
+                <div className="flex-1 overflow-y-auto p-4 space-y-2 custom-scrollbar">
+                    <div className="p-4 rounded-3xl bg-primary/10 border border-primary/20 cursor-pointer group">
+                        <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-2xl bg-primary/20 flex items-center justify-center text-primary font-black italic">S</div>
+                            <div className="flex-1 min-w-0">
+                                <div className="text-xs font-black truncate">Support Hub</div>
+                                <div className="text-[10px] text-muted-foreground/50 truncate">Welcome to private messages!</div>
+                            </div>
+                        </div>
+                    </div>
+                    {/* More chats will load here */}
+                </div>
+            </div>
+
+            {/* Active Chat Window */}
+            <div className="flex-1 bg-white/5 border border-white/5 rounded-[40px] overflow-hidden flex flex-col relative">
+                <div className="flex-1 flex flex-col items-center justify-center text-center p-12 opacity-20">
+                    <MessageSquare size={48} className="text-primary mb-4" />
+                    <h3 className="text-2xl font-black uppercase tracking-tighter italic">Select a conversation</h3>
+                    <p className="text-xs font-bold uppercase tracking-widest mt-2 max-w-xs">Pick a friend from your circle to start a private encrypted session.</p>
+                </div>
+
+                {/* Message Input (Placeholder) */}
+                <div className="p-6 bg-black/20 border-t border-white/5">
+                    <div className="relative group">
+                        <input 
+                            disabled
+                            placeholder="Select a friend to message..." 
+                            className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 px-6 text-sm font-medium outline-none transition-all focus:border-primary/40 opacity-50 cursor-not-allowed" 
+                        />
+                        <button disabled className="absolute right-3 top-2.5 p-2 rounded-xl bg-primary text-primary-foreground opacity-50">
+                            <Send size={18} />
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
   }
 
   return (
@@ -768,7 +810,13 @@ export function ChatHub({ onRunPrompt, view }: { onRunPrompt: (prompt: string) =
                              <Compass size={24} className="text-primary" />}
                         </div>
                         <div className="flex items-center gap-4">
-                            <h2 className="text-2xl font-black italic uppercase tracking-tighter leading-none">{view === 'home' ? 'Home Feed' : view === 'explore' ? 'Discovery Hub' : view === 'friends' ? 'Friends' : 'Community Rules'}</h2>
+                            <h2 className="text-2xl font-black italic uppercase tracking-tighter leading-none">
+                                {view === 'home' ? 'Home Feed' : 
+                                 view === 'explore' ? 'Discovery Hub' : 
+                                 view === 'friends' ? 'Friends' : 
+                                 view === 'messages' ? 'Private Messages' :
+                                 'Community Rules'}
+                            </h2>
                             
                             {view !== 'rules' && (
                                 <HubTooltip text="Refresh Feed" position="bottom">
@@ -813,6 +861,10 @@ export function ChatHub({ onRunPrompt, view }: { onRunPrompt: (prompt: string) =
         <div className="flex-1 overflow-y-auto custom-scrollbar scroll-smooth">
           {view === 'rules' ? (
               <RulesView />
+          ) : view === 'messages' ? (
+              <div className="max-w-6xl mx-auto pt-6 pb-6 px-6 h-full">
+                  <MessagesView />
+              </div>
           ) : (
             <div className="max-w-5xl mx-auto pt-6 pb-6 px-6 md:px-0">
                 {renderComposer()}
@@ -880,25 +932,33 @@ export function ChatHub({ onRunPrompt, view }: { onRunPrompt: (prompt: string) =
                     );
                     return (
                         <>
-                            {posts.map(post => (
-                                <AIHubCard 
-                                    key={post.id} id={post.id}
-                                    user={{ id: post.user_id, name: post.user?.display_name || 'Anonymous', avatar: post.user?.avatar_url || '', role: post.user?.role || 'user', stack: post.user?.stack }}
-                                    content={{ prompt: post.prompt, response_preview: post.response_preview }}
-                                    timestamp={new Date(post.created_at).toLocaleDateString()}
-                                    stats={{ likes: post.likes_count, forks: post.forks_count, replies: post.replies_count }}
-                                    isLiked={post.hub_post_likes?.some((l: any) => l.user_id === user?.id)}
-                                    isForked={post.hub_post_forks?.some((f: any) => f.user_id === user?.id)}
-                                    isFollowing={followedIds.includes(post.user_id)}
-                                    isFriend={(() => {
-                                        const rel = friendContext.find(f => (f.user_id === post.user_id && f.friend_id === user?.id) || (f.friend_id === post.user_id && f.user_id === user?.id));
-                                        if (!rel) return 'none';
-                                        return rel.status === 'accepted' ? 'accepted' : (rel.user_id === user?.id ? 'pending' : 'none');
-                                    })()}
-                                    isModerator={user?.id === post.user_id || user?.role === 'owner'}
-                                    onRun={onRunPrompt} onDelete={handleDeletePost} onLike={handleToggleLike} onFork={handleIncrementFork} onFollow={handleToggleFollow} onFriendRequest={handleToggleFriend}
-                                />
-                            ))}
+                            {posts.map(post => {
+                                const rel = friendContext.find((c: any) => (c.user_id === user?.id && c.friend_id === post.user_id) || (c.user_id === post.user_id && c.friend_id === user?.id));
+                                const friendStatus = rel ? rel.status : 'none';
+                                
+                                return (
+                                    <AIHubCard 
+                                        key={post.id} id={post.id}
+                                        user={{ id: post.user_id, name: post.user?.display_name || 'Anonymous', avatar: post.user?.avatar_url || '', role: post.user?.role || 'user', stack: post.user?.stack }}
+                                        content={{ prompt: post.prompt, response_preview: post.response_preview }}
+                                        timestamp={new Date(post.created_at).toLocaleDateString()}
+                                        stats={{ likes: post.likes_count, forks: post.forks_count, replies: post.replies_count }}
+                                        isLiked={post.hub_post_likes?.some((l: any) => l.user_id === user?.id)}
+                                        isForked={post.hub_post_forks?.some((f: any) => f.user_id === user?.id)}
+                                        isFollowing={followedIds.includes(post.user_id)}
+                                        isFriend={friendStatus}
+                                        isModerator={false}
+                                        currentUserId={user?.id}
+                                        onRun={onRunPrompt}
+                                        onDelete={handleDeletePost}
+                                        onLike={handleToggleLike}
+                                        onFork={handleIncrementFork}
+                                        onReport={handleReportPost}
+                                        onFollow={handleToggleFollow}
+                                        onFriendRequest={handleToggleFriend}
+                                    />
+                                );
+                            })}
                             {posts.length > 0 && <div className="p-10 text-center opacity-10 pointer-events-none"><h3 className="text-2xl font-black uppercase tracking-tighter italic">End of Feed</h3></div>}
                         </>
                     );

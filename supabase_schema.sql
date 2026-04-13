@@ -291,3 +291,25 @@ CREATE POLICY "Friends are visible to involved parties" ON hub_friends
 DROP POLICY IF EXISTS "Users can manage their own friend requests" ON hub_friends;
 CREATE POLICY "Users can manage their own friend requests" ON hub_friends 
     FOR ALL USING (auth.uid() = user_id OR auth.uid() = friend_id);
+-- ==========================================
+-- PRIVATE MESSAGING SYSTEM
+-- ==========================================
+
+CREATE TABLE IF NOT EXISTS hub_private_messages (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    sender_id UUID REFERENCES user_settings(user_id) ON DELETE CASCADE NOT NULL,
+    receiver_id UUID REFERENCES user_settings(user_id) ON DELETE CASCADE NOT NULL,
+    content TEXT NOT NULL,
+    is_read BOOLEAN DEFAULT false,
+    created_at TIMESTAMPTZ DEFAULT now()
+);
+
+ALTER TABLE hub_private_messages ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Users can see their own messages" ON hub_private_messages;
+CREATE POLICY "Users can see their own messages" ON hub_private_messages
+    FOR SELECT USING (auth.uid() = sender_id OR auth.uid() = receiver_id);
+
+DROP POLICY IF EXISTS "Users can send messages" ON hub_private_messages;
+CREATE POLICY "Users can send messages" ON hub_private_messages
+    FOR INSERT WITH CHECK (auth.uid() = sender_id);
