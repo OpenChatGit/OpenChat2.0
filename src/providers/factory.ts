@@ -2,6 +2,7 @@ import type { ProviderConfig, ProviderType } from '../types'
 import { BaseProvider } from './base'
 import { OllamaProvider } from './ollama'
 import { SupabasePremiumProvider } from './supabase-premium'
+import { LlamaCppProvider } from './llama-cpp'
 
 export class ProviderFactory {
   static createProvider(config: ProviderConfig): BaseProvider {
@@ -10,6 +11,8 @@ export class ProviderFactory {
         return new OllamaProvider(config)
       case 'supabase-premium':
         return new SupabasePremiumProvider(config)
+      case 'llama-cpp':
+        return new LlamaCppProvider(config)
       default:
         throw new Error(`Unsupported provider type: ${config.type}`)
     }
@@ -27,6 +30,12 @@ export class ProviderFactory {
         type: 'supabase-premium',
         name: 'OpenChat Cloud',
         baseUrl: '', // Managed by Supabase URL
+        enabled: true,
+      },
+      'llama-cpp': {
+        type: 'llama-cpp',
+        name: 'llama.cpp',
+        baseUrl: 'http://localhost:8080',
         enabled: true,
       },
     }

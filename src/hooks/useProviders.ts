@@ -15,6 +15,7 @@ export function useProviders() {
   useEffect(() => {
     const defaultProviders: ProviderConfig[] = [
       ProviderFactory.getDefaultConfig('ollama'),
+      ProviderFactory.getDefaultConfig('llama-cpp'),
       ProviderFactory.getDefaultConfig('supabase-premium'),
     ]
 

@@ -1,4 +1,4 @@
-import { MessageSquare, MessageCircle, Play, Code, Copy, Trash2, ShieldCheck, Home as HomeIcon, Terminal, Flame, Compass, RefreshCw, MoreHorizontal, Flag, ChevronUp, Check, Maximize2, UserCheck, Users, Eye, ArrowUp, Heart, Zap, Share, Search, ShieldAlert } from 'lucide-react'
+import { MessageSquare, MessageCircle, Play, Code, Copy, Trash2, ShieldCheck, Home as HomeIcon, Terminal, Flame, Compass, RefreshCw, MoreHorizontal, Flag, ChevronUp, Check, Maximize2, UserCheck, Users, Eye, ArrowUp, Heart, Zap, Share, Search, ShieldAlert, ArrowLeft, Github, Globe, ChevronDown } from 'lucide-react'
 import { useState, useEffect, useRef } from 'react'
 import { cn } from '../lib/utils'
 import { VerifiedBadge, type UserRole } from './VerifiedBadge'
@@ -9,6 +9,7 @@ import { HubTooltip } from './HubTooltip'
 import { StackBadges } from './StackBadges'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import { ChatInput } from './ChatInput'
 
 interface HubCardProps {
   id: string
@@ -415,9 +416,7 @@ type HubView = 'home' | 'explore' | 'rules' | 'friends' | 'messages';
 
 interface MessagesViewProps {
     user: any;
-    friendsList: any[];
     activeChatUserId: string | null;
-    setActiveChatUserId: (id: string | null) => void;
     onlineUserIds: string[];
     handleReportPost: (postId: string | null, reportedUserId: string) => void;
     handleBlockUser: (targetUserId: string | null) => void;
@@ -425,15 +424,14 @@ interface MessagesViewProps {
     msgInput: string;
     setMsgInput: (val: string) => void;
     handleSendMessage: () => void;
+    friendsList: any[];
     blockedByMe: string[];
     whoBlockedMe: string[];
 }
 
 function MessagesView({
     user,
-    friendsList,
     activeChatUserId,
-    setActiveChatUserId,
     onlineUserIds,
     handleReportPost,
     handleBlockUser,
@@ -441,191 +439,545 @@ function MessagesView({
     msgInput,
     setMsgInput,
     handleSendMessage,
+    friendsList,
     blockedByMe,
     whoBlockedMe
 }: MessagesViewProps) {
+    const messagesEndRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }, [chatMessages]);
+
+    const activeFriend = friendsList.find(f => f.user_id === activeChatUserId);
+
     return (
-        <div className="flex h-[calc(100vh-8rem)] bg-card border border-border/50 rounded-3xl overflow-hidden shadow-2xl animate-in fade-in slide-in-from-bottom-4 duration-700">
-            {/* Conversations Sidebar (Left) */}
-            <div className="w-[380px] flex-shrink-0 border-r border-border/10 flex flex-col bg-black/20">
-                <div className="p-6 space-y-4">
-                    <div className="flex items-center justify-between">
-                        <h3 className="text-xl font-black uppercase tracking-tighter italic">Messages</h3>
-                        <div className="flex gap-2">
-                             <div className="p-2 rounded-xl bg-primary/10 text-primary"><MessageSquare size={16} /></div>
+        <div className="flex-1 flex flex-col h-full overflow-hidden bg-transparent relative">
+            {!activeChatUserId ? (
+                <div className="flex-1 flex flex-col items-center justify-center p-12 text-center h-full relative">
+                    <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(var(--primary),0.03),transparent_70%)] pointer-events-none" />
+                    <div className="relative z-10 flex flex-col items-center max-w-sm">
+                        <div className="w-20 h-20 rounded-[32px] bg-white/5 border border-white/10 flex items-center justify-center mb-8 shadow-2xl animate-pulse">
+                            <MessageSquare size={32} className="text-muted-foreground/40" />
+                        </div>
+                        <h3 className="text-3xl font-black uppercase tracking-tighter italic mb-3">Connect & Create</h3>
+                        <p className="text-sm font-bold text-muted-foreground uppercase tracking-widest leading-loose opacity-40">
+                            Select a friend to start a real-time conversation.
+                        </p>
+                    </div>
+                </div>
+            ) : (
+                <>
+
+                    {/* Messages Area */}
+                    <div className="flex-1 overflow-y-auto px-6 pb-8 custom-scrollbar">
+                            <div className="max-w-4xl mx-auto space-y-6 pt-8">
+                            {chatMessages.length === 0 ? (
+                                <div className="flex flex-col items-center justify-center p-12 text-center opacity-20 h-full mt-20">
+                                    <MessageCircle size={48} className="mb-4" />
+                                    <p className="text-xs font-black uppercase tracking-widest italic font-medium">Start the conversation</p>
+                                </div>
+                            ) : (
+                                chatMessages.map((msg, i) => {
+                                    const isMe = msg.sender_id === user?.id;
+                                    const showAvatar = i === 0 || chatMessages[i - 1].sender_id !== msg.sender_id;
+                                    const isBlocked = blockedByMe.includes(msg.sender_id) || whoBlockedMe.includes(msg.sender_id);
+
+                                    if (isBlocked) return null;
+
+                                    return (
+                                        <div 
+                                            key={msg.id} 
+                                            className={cn(
+                                                "flex flex-col animate-in fade-in slide-in-from-bottom-2 duration-300",
+                                                isMe ? "items-end" : "items-start"
+                                            )}
+                                        >
+                                            <div className={cn(
+                                                "flex gap-3 max-w-[80%]",
+                                                isMe ? "flex-row-reverse" : "flex-row"
+                                            )}>
+                                                {showAvatar && !isMe ? (
+                                                    <div className="w-8 h-8 rounded-xl bg-primary/20 flex-shrink-0 flex items-center justify-center border border-primary/10 overflow-hidden shadow-lg mt-1">
+                                                        {activeFriend?.avatar_url ? (
+                                                            <img src={activeFriend.avatar_url} className="w-full h-full object-cover" />
+                                                        ) : (
+                                                            <span className="text-[10px] font-black italic text-primary">{activeFriend?.display_name[0]}</span>
+                                                        )}
+                                                    </div>
+                                                ) : !isMe && <div className="w-8" />}
+                                                
+                                                <div className="flex flex-col gap-1">
+                                                    <div 
+                                                        className={cn(
+                                                            "px-4 py-2.5 rounded-2xl text-sm font-medium shadow-sm border",
+                                                            isMe 
+                                                                ? "bg-primary text-primary-foreground border-primary/20 rounded-tr-none" 
+                                                                : "bg-white/5 border-white/10 rounded-tl-none"
+                                                        )}
+                                                    >
+                                                        {msg.content}
+                                                    </div>
+                                                    <div className={cn(
+                                                        "text-[9px] font-bold uppercase tracking-widest opacity-20 px-1",
+                                                        isMe ? "text-right" : "text-left"
+                                                    )}>
+                                                        {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    );
+                                })
+                            )}
+                            <div ref={messagesEndRef} />
                         </div>
                     </div>
-                    
-                    <div className="relative group">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground/30 group-focus-within:text-primary transition-colors" size={14} />
-                        <input 
-                            placeholder="Search conversation..." 
-                            className="w-full bg-white/5 border border-white/10 rounded-xl py-2.5 pl-10 pr-4 text-[10px] font-bold uppercase tracking-widest outline-none transition-all focus:border-primary/40 focus:bg-white/10"
-                        />
-                    </div>
-                </div>
 
-                <div className="flex-1 overflow-y-auto custom-scrollbar">
-                    <div className="px-3 pb-6 space-y-1">
-                        {friendsList.length === 0 ? (
-                            <div className="p-12 text-center opacity-20">
-                                <Users size={32} className="mx-auto mb-4 border-2 border-dashed border-current p-2 rounded-full" />
-                                <p className="text-[10px] font-black uppercase tracking-widest">No friends found</p>
-                            </div>
-                        ) : (
-                            friendsList.map(f => (
-                                <div 
-                                    key={f.user_id}
-                                    onClick={() => setActiveChatUserId(f.user_id)}
-                                    className={cn(
-                                        "p-4 rounded-2xl cursor-pointer transition-all flex items-center gap-4 group/item border",
-                                        activeChatUserId === f.user_id 
-                                            ? "border-primary shadow-[0_0_15px_rgba(var(--primary),0.1)]" 
-                                            : "border-transparent hover:bg-white/5"
-                                    )}
-                                >
-                                    <div className="relative">
-                                        <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-primary/20 to-purple-500/20 flex items-center justify-center border border-primary/10 shadow-lg text-primary font-black italic text-xl overflow-hidden relative">
-                                            {f.avatar_url ? (
-                                                <img src={f.avatar_url} alt={f.display_name} className="w-full h-full object-cover" />
-                                            ) : (
-                                                <span className="text-primary">{f.display_name[0]}</span>
-                                            )}
-                                            {/* Online Badge on Avatar */}
-                                            {onlineUserIds.includes(f.user_id) && (
-                                                <div className="absolute bottom-1 right-1 w-2.5 h-2.5 bg-green-500 rounded-full border-2 border-black" />
-                                            )}
-                                        </div>
-                                    </div>
-                                    <div className="flex-1 min-w-0">
-                                        <div className="flex items-center justify-between mb-1 gap-2">
-                                            <div className="flex items-center gap-1.5 min-w-0 flex-1">
-                                                <span className="text-sm font-black italic uppercase tracking-tighter truncate leading-none pr-2 text-foreground">{f.display_name}</span>
-                                                <VerifiedBadge role={f.role} className="scale-75 origin-left shrink-0" />
-                                            </div>
-                                            <div className={cn(
-                                                "text-[9px] font-black uppercase tracking-tighter italic shrink-0",
-                                                onlineUserIds.includes(f.user_id) ? "text-green-500" : "text-muted-foreground/30"
-                                            )}>
-                                                {onlineUserIds.includes(f.user_id) ? 'Online' : 'Offline'}
-                                            </div>
-                                        </div>
-                                        <div className="text-[10px] font-bold uppercase tracking-widest truncate opacity-60 text-muted-foreground">
-                                            {onlineUserIds.includes(f.user_id) ? 'Available to chat' : 'Click to message'}
-                                        </div>
-                                    </div>
+                    {/* Input Container (Pinned to bottom and centered) */}
+                    <div className="w-full flex flex-col items-center bg-transparent pb-4 pt-4">
+                        <div className="w-full max-w-3xl px-4">
+                            {blockedByMe.includes(activeChatUserId) || whoBlockedMe.includes(activeChatUserId) ? (
+                                <div className="text-center p-4 bg-red-500/10 text-red-500 rounded-2xl text-xs font-black uppercase tracking-widest italic border border-red-500/20">
+                                    Connection blocked.
                                 </div>
-                            ))
-                        )}
-                    </div>
-                </div>
-            </div>
-
-            {/* Active Message Area (Right) */}
-            <div className="flex-1 flex flex-col bg-black/10 relative overflow-hidden">
-                {!activeChatUserId ? (
-                    <div className="flex-1 flex flex-col items-center justify-center p-12 text-center">
-                        <div className="absolute inset-0 bg-gradient-to-b from-primary/5 to-transparent pointer-events-none" />
-                        <div className="relative z-10 flex flex-col items-center max-w-sm">
-                            <div className="w-20 h-20 rounded-[32px] bg-white/5 border border-white/10 flex items-center justify-center mb-8 shadow-2xl animate-pulse">
-                                <MessageSquare size={32} className="text-muted-foreground/40" />
-                            </div>
-                            <h3 className="text-3xl font-black uppercase tracking-tighter italic mb-3">Select a Message</h3>
-                            <p className="text-sm font-bold text-muted-foreground uppercase tracking-widest leading-loose opacity-40">
-                                Choose from your existing conversations to connect with other creators.
+                            ) : (
+                                <ChatInput 
+                                    onSend={(content) => {
+                                        setMsgInput(content);
+                                        // Trigger handleSendMessage after local state sync
+                                        setTimeout(() => {
+                                            const btn = document.getElementById('chat-hub-send-trigger');
+                                            btn?.click();
+                                        }, 0);
+                                    }}
+                                    showWebSearch={false}
+                                    modelCapabilities={{ vision: true, reasoning: false }}
+                                />
+                            )}
+                            <p className="text-[10px] text-muted-foreground/30 text-center mt-2 font-bold uppercase tracking-widest italic">
+                                Private messaging on OpenChat Social
                             </p>
                         </div>
                     </div>
-                ) : (() => {
-                    const activeFriend = friendsList.find(f => f.user_id === activeChatUserId);
-                    return (
-                        <div className="flex-1 flex flex-col animate-in fade-in duration-300">
-                            {/* Chat Header */}
-                            <div className="px-6 py-2.5 border-b border-white/5 bg-black/20 flex items-center justify-end">
-                                <div className="flex gap-2">
-                                     <button 
-                                        onClick={() => handleReportPost(null, activeChatUserId)}
-                                        className="p-2 rounded-xl hover:bg-white/5 text-muted-foreground hover:text-red-500 transition-all"
-                                        title="Report User"
-                                    >
-                                        <Flag size={18} />
-                                    </button>
-                                    <button 
-                                        onClick={() => handleBlockUser(activeChatUserId)}
-                                        className="p-2 rounded-xl hover:bg-white/5 text-muted-foreground hover:text-red-500 transition-all"
-                                        title="Block User"
-                                    >
-                                        <ShieldAlert size={18} />
-                                    </button>
-                                </div>
-                            </div>
+                    {/* Hidden trigger to use existing handleSendMessage logic without modification */}
+                    <button id="chat-hub-send-trigger" onClick={handleSendMessage} className="hidden" />
+                </>
+            )}
+        </div>
+    );
+}
 
-                            {/* Message History */}
-                            <div className="flex-1 overflow-y-auto p-8 space-y-4 custom-scrollbar flex flex-col">
-                                {chatMessages.length === 0 ? (
-                                    <div className="flex-1 flex flex-col items-center justify-center opacity-10 grayscale">
-                                        <MessageCircle size={48} className="mb-4" />
-                                        <h4 className="text-xl font-black uppercase tracking-tighter italic">No history yet</h4>
-                                        <p className="text-[10px] font-bold uppercase tracking-[0.2em] mt-2">Start a conversation!</p>
-                                    </div>
-                                ) : (
-                                    chatMessages.map(m => {
-                                        const isMine = m.sender_id === user?.id;
-                                        return (
-                                            <div key={m.id} className={cn(
-                                                "flex items-end gap-2 max-w-[85%] animate-in fade-in slide-in-from-bottom-1 duration-300",
-                                                isMine ? "self-end flex-row-reverse" : "self-start flex-row"
-                                            )}>
-                                                <div className={cn(
-                                                    "py-2 px-3.5 rounded-2xl text-xs font-semibold leading-relaxed shadow-sm",
-                                                    isMine 
-                                                        ? "bg-primary text-primary-foreground" 
-                                                        : "bg-white/5 border border-white/5 text-foreground"
-                                                )}>
-                                                    {m.content}
-                                                </div>
-                                                <span className="text-[8px] font-black uppercase tracking-widest opacity-20 mb-1 shrink-0 italic">
-                                                    {new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                                </span>
-                                            </div>
-                                        );
-                                    })
-                                )}
-                            </div>
+function ProfileView({ 
+    userId, 
+    currentUserId,
+    onClose
+}: { 
+    userId: string, 
+    currentUserId?: string,
+    onClose: () => void 
+}) {
+    const [profile, setProfile] = useState<any>(null);
+    const [isLoading, setIsLoading] = useState(true);
+    const [isEditingReadme, setIsEditingReadme] = useState(false);
+    const [tempReadme, setTempReadme] = useState("");
+    const [showDesignDrawer, setShowDesignDrawer] = useState(false);
+    const [tempThemeColor, setTempThemeColor] = useState("#3b82f6");
+    const [tempBannerUrl, setTempBannerUrl] = useState("");
+    const [tempBio, setTempBio] = useState("");
 
-                            {/* Message Input */}
-                            <div className="p-6 relative">
-                                {blockedByMe.includes(activeChatUserId) || whoBlockedMe.includes(activeChatUserId) ? (
-                                    <div className="py-4 px-6 rounded-2xl bg-red-500/10 border border-red-500/20 text-red-500 text-center text-[10px] font-black uppercase tracking-widest italic">
-                                        You cannot message this user. Connection blocked.
-                                    </div>
-                                ) : (
-                                    <div className="relative group">
-                                        <input 
-                                            value={msgInput}
-                                            onChange={(e) => setMsgInput(e.target.value)}
-                                            onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
-                                            placeholder={`Message ${activeFriend?.display_name || ''}...`} 
-                                            className="w-full bg-white/10 border border-white/10 rounded-2xl py-4 px-6 pr-16 text-sm font-medium outline-none transition-all focus:border-primary/40 focus:bg-white/15" 
-                                        />
+    const handleSaveDesign = async () => {
+        try {
+            const session = await getSafeSession();
+            const token = session?.access_token;
+            if (!token || !profile) return;
+
+            const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+            const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+            const res = await fetch(
+                `${supabaseUrl}/rest/v1/user_settings?user_id=eq.${profile.user_id}&apikey=${supabaseAnonKey}`,
+                {
+                    method: 'PATCH',
+                    headers: {
+                        'apikey': supabaseAnonKey,
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json',
+                        'Prefer': 'return=minimal'
+                    },
+                    body: JSON.stringify({ 
+                        profile_theme_color: tempThemeColor,
+                        profile_banner_url: tempBannerUrl,
+                        bio: tempBio
+                    })
+                }
+            );
+
+            if (res.ok) {
+                setProfile({ 
+                    ...profile, 
+                    profile_theme_color: tempThemeColor, 
+                    profile_banner_url: tempBannerUrl,
+                    bio: tempBio
+                });
+                setShowDesignDrawer(false);
+            }
+        } catch (err) {
+            console.error('Failed to save design', err);
+        }
+    };
+
+    const handleSaveReadme = async () => {
+        try {
+            const session = await getSafeSession();
+            const token = session?.access_token;
+            if (!token || !profile) return;
+
+            const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+            const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+            const res = await fetch(
+                `${supabaseUrl}/rest/v1/user_settings?user_id=eq.${profile.user_id}&apikey=${supabaseAnonKey}`,
+                {
+                    method: 'PATCH',
+                    headers: {
+                        'apikey': supabaseAnonKey,
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json',
+                        'Prefer': 'return=minimal'
+                    },
+                    body: JSON.stringify({ readme: tempReadme })
+                }
+            );
+
+            if (res.ok) {
+                setProfile({ ...profile, readme: tempReadme });
+                setIsEditingReadme(false);
+            }
+        } catch (err) {
+            console.error('Failed to save readme', err);
+        }
+    };
+
+    useEffect(() => {
+        const fetchProfile = async () => {
+            try {
+                const session = await getSafeSession();
+                const token = session?.access_token;
+                if (!token) return;
+
+                const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+                const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+                // Fetch profile data first (robustly)
+                const res = await fetch(
+                    `${supabaseUrl}/rest/v1/user_settings?user_id=eq.${userId}&select=*&apikey=${supabaseAnonKey}`,
+                    { headers: { 'apikey': supabaseAnonKey, 'Authorization': `Bearer ${token}` } }
+                );
+
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data[0]) {
+                        setTempReadme(data[0].readme || "");
+                        setTempThemeColor(data[0].profile_theme_color || "#3b82f6");
+                        setTempBannerUrl(data[0].profile_banner_url || "");
+                        setTempBio(data[0].bio || "");
+                        
+                        // Fetch stats in parallel to keep it fast but separate
+                        const [postsRes, followersRes, followingRes] = await Promise.all([
+                            fetch(`${supabaseUrl}/rest/v1/hub_posts?user_id=eq.${userId}&select=count&apikey=${supabaseAnonKey}`, { headers: { 'apikey': supabaseAnonKey, 'Authorization': `Bearer ${token}` } }),
+                            fetch(`${supabaseUrl}/rest/v1/hub_follows?following_id=eq.${userId}&select=count&apikey=${supabaseAnonKey}`, { headers: { 'apikey': supabaseAnonKey, 'Authorization': `Bearer ${token}` } }),
+                            fetch(`${supabaseUrl}/rest/v1/hub_follows?follower_id=eq.${userId}&select=count&apikey=${supabaseAnonKey}`, { headers: { 'apikey': supabaseAnonKey, 'Authorization': `Bearer ${token}` } })
+                        ]);
+
+                        const postsCount = postsRes.ok ? (await postsRes.json())[0]?.count || 0 : 0;
+                        const followersCount = followersRes.ok ? (await followersRes.json())[0]?.count || 0 : 0;
+                        const followingCount = followingRes.ok ? (await followingRes.json())[0]?.count || 0 : 0;
+
+                        setProfile({
+                            ...data[0],
+                            posts_count: postsCount,
+                            followers_count: followersCount,
+                            following_count: followingCount
+                        });
+                    }
+                }
+            } catch (err) {
+                console.error('Failed to fetch profile', err);
+            } finally {
+                setIsLoading(false);
+            }
+        };
+        fetchProfile();
+    }, [userId]);
+
+    if (isLoading) return (
+        <div className="h-full flex flex-col items-center justify-center opacity-20">
+            <RefreshCw size={48} className="animate-spin mb-4" />
+            <p className="text-sm font-black uppercase tracking-widest italic">Loading Profile...</p>
+        </div>
+    );
+
+    if (!profile) return (
+        <div className="h-full flex flex-col items-center justify-center opacity-20">
+            <ShieldAlert size={48} className="mb-4" />
+            <p className="text-sm font-black uppercase tracking-widest italic">User not found</p>
+        </div>
+    );
+
+    const isOwnProfile = userId === currentUserId;
+    const themeColor = profile?.profile_theme_color || '#3b82f6';
+
+    return (
+        <div 
+            className="h-full flex flex-col animate-in fade-in slide-in-from-bottom-4 duration-700 bg-background/30 backdrop-blur-md overflow-hidden transition-colors"
+            style={{ '--profile-theme': themeColor } as any}
+        >
+            {/* Profile Banner & Header */}
+            <div className="relative h-64 flex-shrink-0 group/banner">
+                {profile.profile_banner_url ? (
+                    <img src={profile.profile_banner_url} className="absolute inset-0 w-full h-full object-cover opacity-60" />
+                ) : (
+                    <div 
+                        className="absolute inset-0 opacity-20"
+                        style={{ background: `linear-gradient(to bottom right, ${themeColor}, transparent)` }}
+                    />
+                )}
+                <div className="absolute inset-0 bg-gradient-to-t from-background via-background/40 to-transparent" />
+                
+                <div className="absolute bottom-0 left-0 right-0 p-12 flex items-end gap-8">
+                    <div className="relative group/avatar">
+                        <div 
+                            className="w-32 h-32 rounded-[40px] flex items-center justify-center border-4 border-background shadow-2xl text-4xl font-black italic overflow-hidden transition-transform duration-500 group-hover/avatar:scale-105"
+                            style={{ 
+                                backgroundColor: `${themeColor}20`,
+                                color: themeColor,
+                                borderColor: 'var(--background)'
+                            }}
+                        >
+                            {profile.avatar_url ? (
+                                <img src={profile.avatar_url} className="w-full h-full object-cover" />
+                            ) : (
+                                <span>{profile.display_name?.[0]}</span>
+                            )}
+                        </div>
+                    </div>
+                    <div className="flex-1 pb-2 text-left">
+                        <div className="flex items-center gap-3 mb-2">
+                            <h1 className="text-5xl font-black italic uppercase tracking-tighter leading-none">{profile.display_name}</h1>
+                            <VerifiedBadge role={profile.role} className="scale-125" />
+                        </div>
+                        <p className="text-xs font-bold text-muted-foreground uppercase tracking-[0.3em] opacity-60">
+                             @{profile.display_name.toLowerCase().replace(/\s/g, '_')} • {profile.role}
+                        </p>
+                    </div>
+                    <div className="flex gap-4 pb-4">
+                        {isOwnProfile ? (
+                            <button 
+                                onClick={() => setShowDesignDrawer(true)}
+                                className="px-8 py-3 rounded-2xl bg-white/5 border border-white/10 text-xs font-black uppercase tracking-widest hover:bg-white/10 transition-all flex items-center gap-2"
+                            >
+                                <Maximize2 size={14} /> Customize Page
+                            </button>
+                        ) : (
+                            <button 
+                                className="px-8 py-3 rounded-2xl text-white text-xs font-black uppercase tracking-widest shadow-xl transition-all hover:scale-105 active:scale-95"
+                                style={{ 
+                                    backgroundColor: themeColor,
+                                    boxShadow: `0 10px 25px -5px ${themeColor}40`
+                                }}
+                            >
+                                Follow
+                            </button>
+                        )}
+                    </div>
+                </div>
+                
+                <button 
+                  onClick={onClose}
+                  className="absolute top-6 right-6 p-2 rounded-xl bg-white/5 border border-white/10 text-muted-foreground hover:text-foreground transition-all z-50"
+                >
+                    <ArrowLeft size={20} />
+                </button>
+            </div>
+
+            {/* Customizer Drawer */}
+            {isOwnProfile && showDesignDrawer && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-end animate-in fade-in duration-300">
+                    <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowDesignDrawer(false)} />
+                    <div className="relative w-[400px] h-full bg-background border-l border-white/5 p-12 flex flex-col animate-in slide-in-from-right duration-500 shadow-2xl">
+                        <div className="flex items-center justify-between mb-12">
+                            <h2 className="text-2xl font-black italic uppercase tracking-tighter">Design Hub</h2>
+                            <button onClick={() => setShowDesignDrawer(false)} className="p-2 opacity-40 hover:opacity-100 transition-all"><ChevronDown size={24} className="rotate-270" /></button>
+                        </div>
+
+                        <div className="flex-1 space-y-10 overflow-y-auto custom-scrollbar pr-4">
+                            <section>
+                                <h3 className="text-[10px] font-black uppercase tracking-[0.3em] opacity-30 mb-4">Theme Color</h3>
+                                <div className="flex flex-wrap gap-3">
+                                    {['#3b82f6', '#8b5cf6', '#ec4899', '#f97316', '#10b981', '#ef4444', '#f59e0b', '#06b6d4'].map(color => (
                                         <button 
-                                            onClick={handleSendMessage}
-                                            className="absolute right-3 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-white text-black flex items-center justify-center shadow-xl hover:scale-110 active:scale-90 transition-all group/send"
-                                        >
-                                            <ArrowUp size={14} strokeWidth={3} className="transition-transform group-hover/send:-translate-y-0.5" />
-                                        </button>
-                                    </div>
-                                )}
+                                            key={color} 
+                                            onClick={() => setTempThemeColor(color)}
+                                            className={cn("w-10 h-10 rounded-xl transition-all", tempThemeColor === color ? "scale-110 ring-2 ring-white ring-offset-4 ring-offset-background" : "hover:scale-105 opacity-60 hover:opacity-100")}
+                                            style={{ backgroundColor: color }}
+                                        />
+                                    ))}
+                                    <input 
+                                        type="color" 
+                                        value={tempThemeColor} 
+                                        onChange={(e) => setTempThemeColor(e.target.value)}
+                                        className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 p-1 cursor-pointer"
+                                    />
+                                </div>
+                            </section>
+
+                            <section>
+                                <h3 className="text-[10px] font-black uppercase tracking-[0.3em] opacity-30 mb-4">Banner Image URL</h3>
+                                <input 
+                                    type="text" 
+                                    value={tempBannerUrl}
+                                    onChange={(e) => setTempBannerUrl(e.target.value)}
+                                    className="w-full bg-white/5 border border-white/5 rounded-2xl p-4 text-xs font-bold focus:outline-none focus:border-white/20 transition-all"
+                                    placeholder="https://images.unsplash.com/..."
+                                />
+                            </section>
+
+                            <section>
+                                <h3 className="text-[10px] font-black uppercase tracking-[0.3em] opacity-30 mb-4">Short Bio</h3>
+                                <textarea 
+                                    value={tempBio}
+                                    onChange={(e) => setTempBio(e.target.value)}
+                                    className="w-full bg-white/5 border border-white/5 rounded-2xl p-4 text-xs font-bold h-24 focus:outline-none focus:border-white/20 transition-all"
+                                    placeholder="Tell the community who you are..."
+                                />
+                            </section>
+                        </div>
+
+                        <div className="pt-8 mt-auto flex gap-4 border-t border-white/5">
+                            <button 
+                                onClick={() => setShowDesignDrawer(false)}
+                                className="flex-1 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest opacity-40 hover:opacity-100 transition-all"
+                            >
+                                Cancel
+                            </button>
+                            <button 
+                                onClick={handleSaveDesign}
+                                className="flex-1 py-4 rounded-2xl text-white text-[10px] font-black uppercase tracking-widest shadow-xl transition-all hover:scale-105 active:scale-95"
+                                style={{ backgroundColor: tempThemeColor }}
+                            >
+                                Apply Design
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Content Area */}
+            <div className="flex-1 px-12 py-8 overflow-y-auto custom-scrollbar">
+                <div className="max-w-6xl mx-auto grid grid-cols-12 gap-12">
+                    {/* Left Column: Info & Stats */}
+                    <div className="col-span-12 lg:col-span-4 space-y-8">
+                        {/* Stat Cards */}
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="p-6 rounded-[32px] bg-white/5 border border-white/5 text-center group/stat hover:scale-105 transition-all cursor-default">
+                                <div className="text-2xl font-black italic transition-colors" style={{ color: themeColor }}>{profile.followers_count || 0}</div>
+                                <div className="text-[9px] font-black uppercase tracking-widest opacity-40">Followers</div>
+                            </div>
+                            <div className="p-6 rounded-[32px] bg-white/5 border border-white/5 text-center group/stat hover:scale-105 transition-all cursor-default">
+                                <div className="text-2xl font-black italic transition-colors" style={{ color: themeColor }}>{profile.following_count || 0}</div>
+                                <div className="text-[9px] font-black uppercase tracking-widest opacity-40">Following</div>
                             </div>
                         </div>
-                    );
-                })()}
+
+                        {/* Quick Info Card */}
+                        <div className="p-8 rounded-[40px] bg-white/5 border border-white/5 border-l-4" style={{ borderLeftColor: themeColor }}>
+                            <h3 className="text-[10px] font-black uppercase tracking-[0.3em] opacity-30 mb-6 font-bold">About</h3>
+                            <p className="text-sm font-medium opacity-60 leading-relaxed">
+                                {profile.bio || "No bio provided yet. Add one to introduce yourself to the community!"}
+                            </p>
+                        </div>
+                    </div>
+
+                    {/* Right Column: Readme/Profile Details */}
+                    <div className="col-span-12 lg:col-span-8 space-y-8 text-left">
+                        <div className="p-12 rounded-[48px] bg-white/5 border border-white/5 min-h-[600px] relative overflow-hidden group/readme">
+                            <div className="flex items-center justify-between mb-8">
+                                <h3 className="text-[10px] font-black uppercase tracking-[0.3em] opacity-30 flex items-center gap-2 font-bold">
+                                    <Code size={12} /> README.md
+                                </h3>
+                                {isOwnProfile && (
+                                    <button 
+                                        onClick={() => setIsEditingReadme(!isEditingReadme)}
+                                        className="px-4 py-1.5 rounded-xl bg-primary/10 text-primary text-[10px] font-black uppercase tracking-widest hover:bg-primary/20 transition-all opacity-0 group-hover/readme:opacity-100"
+                                    >
+                                        {isEditingReadme ? "View MD" : "Edit MD"}
+                                    </button>
+                                )}
+                            </div>
+
+                            <div className="prose prose-invert max-w-none">
+                                {isEditingReadme ? (
+                                    <textarea 
+                                        value={tempReadme}
+                                        onChange={(e) => setTempReadme(e.target.value)}
+                                        className="w-full h-[400px] bg-black/20 border border-white/10 rounded-3xl p-8 focus:outline-none focus:border-primary/40 transition-all font-mono text-sm leading-relaxed custom-scrollbar"
+                                        placeholder="# Hello World! 🚀\nWrite your community profile here using Markdown..."
+                                    />
+                                ) : (
+                                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                        {profile.readme || `# Welcome to ${profile.display_name}'s Profile\n\nThis user hasn't created a README yet. Check back soon for more info!`}
+                                    </ReactMarkdown>
+                                )}
+                            </div>
+
+                            {isEditingReadme && (
+                                <div className="mt-8 flex justify-end gap-4">
+                                    <button 
+                                        onClick={() => setIsEditingReadme(false)}
+                                        className="px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest text-muted-foreground hover:text-foreground transition-all"
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button 
+                                        onClick={handleSaveReadme}
+                                        className="px-8 py-2 rounded-xl bg-primary text-primary-foreground text-[10px] font-black uppercase tracking-widest shadow-lg shadow-primary/20 hover:scale-105 active:scale-95 transition-all"
+                                    >
+                                        Save Profile
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     );
 }
 
-export function ChatHub({ onRunPrompt, view }: { onRunPrompt: (prompt: string) => void, view: HubView }) {
+export function ChatHub({ 
+  onRunPrompt, 
+  view,
+  friendsList,
+  onUpdateFriendsList,
+  activeChatUserId,
+  onSetActiveChatUserId,
+  activeProfileUserId,
+  onSetActiveProfileUserId,
+  onlineUserIds,
+  onUpdateOnlineUserIds
+}: { 
+  onRunPrompt: (prompt: string) => void, 
+  view: HubView,
+  friendsList: any[],
+  onUpdateFriendsList: (list: any[]) => void,
+  activeChatUserId: string | null,
+  onSetActiveChatUserId: (id: string | null) => void,
+  activeProfileUserId: string | null,
+  onSetActiveProfileUserId: (id: string | null) => void,
+  onlineUserIds: string[],
+  onUpdateOnlineUserIds: (ids: string[]) => void
+}) {
   const { user } = useAuth()
   const [posts, setPosts] = useState<any[]>([])
   const [isLoading, setIsLoading] = useState(true)
@@ -638,10 +990,7 @@ export function ChatHub({ onRunPrompt, view }: { onRunPrompt: (prompt: string) =
   const [friendsTab, setFriendsTab] = useState<'list' | 'requests'>('list')
   const [followedIds, setFollowedIds] = useState<string[]>([])
   const [friendContext, setFriendContext] = useState<any[]>([])
-  const [friendsList, setFriendsList] = useState<any[]>([])
   const [friendRequests, setFriendRequests] = useState<any[]>([])
-  const [activeChatUserId, setActiveChatUserId] = useState<string | null>(null)
-  const [onlineUserIds, setOnlineUserIds] = useState<string[]>([])
   const [reportModal, setReportModal] = useState<{ isOpen: boolean; postId: string | null; reportedUserId: string | null }>({
     isOpen: false,
     postId: null,
@@ -712,8 +1061,8 @@ export function ChatHub({ onRunPrompt, view }: { onRunPrompt: (prompt: string) =
                           const profilesRes = await fetch(`${supabaseUrl}/rest/v1/user_settings?user_id=in.(${friendIds.join(',')})&select=*&apikey=${supabaseAnonKey}`, {
                               headers: { 'apikey': supabaseAnonKey, 'Authorization': `Bearer ${token}` }
                           });
-                          if (profilesRes.ok) setFriendsList(await profilesRes.json());
-                      } else setFriendsList([]);
+                           if (profilesRes.ok) onUpdateFriendsList(await profilesRes.json());
+                      } else onUpdateFriendsList([]);
                   }
               } 
               
@@ -964,7 +1313,7 @@ export function ChatHub({ onRunPrompt, view }: { onRunPrompt: (prompt: string) =
         .on('presence', { event: 'sync' }, () => {
             const newState = channel.presenceState();
             const onlineIds = Object.keys(newState);
-            setOnlineUserIds(onlineIds);
+            onUpdateOnlineUserIds(onlineIds);
         })
         .subscribe(async (status) => {
             if (status === 'SUBSCRIBED') {
@@ -1163,75 +1512,81 @@ export function ChatHub({ onRunPrompt, view }: { onRunPrompt: (prompt: string) =
 
   return (
     <div className="flex flex-col h-full bg-background relative overflow-hidden">
-        <div className="flex-shrink-0 h-20 border-b border-border/5 bg-background/50 backdrop-blur-3xl z-30 flex items-center px-12">
-            <div className="flex items-center justify-between w-full">
-                <div className="flex items-center gap-8">
-                    <div className="flex items-center gap-4 group">
-                        <div className="transition-transform duration-500 group-hover:scale-110">
-                            {view === 'home' ? <HomeIcon size={24} className="text-primary" /> : 
-                             view === 'friends' ? <Users size={24} className="text-primary" /> : 
-                             view === 'rules' ? <ShieldCheck size={24} className="text-primary" /> : 
-                             <Compass size={24} className="text-primary" />}
+        {view !== 'messages' && !activeProfileUserId && (
+            <div className="flex-shrink-0 h-20 border-b border-border/5 bg-background/50 backdrop-blur-3xl z-30 flex items-center px-12">
+                <div className="flex items-center justify-between w-full text-left">
+                    <div className="flex items-center gap-8">
+                        <div className="flex items-center gap-4 group">
+                            <div className="transition-transform duration-500 group-hover:scale-110">
+                                {view === 'home' ? <HomeIcon size={24} className="text-primary" /> : 
+                                 view === 'friends' ? <Users size={24} className="text-primary" /> : 
+                                 view === 'rules' ? <ShieldCheck size={24} className="text-primary" /> : 
+                                 <Compass size={24} className="text-primary" />}
+                            </div>
+                            <div className="flex items-center gap-4">
+                                <h2 className="text-2xl font-black italic uppercase tracking-tighter leading-none">
+                                    {view === 'home' ? 'Home Feed' : 
+                                     view === 'explore' ? 'Discovery Hub' : 
+                                     view === 'friends' ? 'Friends' : 
+                                     (view as string) === 'messages' ? 'Private Messages' :
+                                     'Community Rules'}
+                                </h2>
+                                
+                                {view !== 'rules' && (
+                                    <HubTooltip text="Refresh Feed" position="bottom">
+                                        <button onClick={fetchPosts} className="p-2 rounded-full hover:bg-primary/10 text-muted-foreground hover:text-primary transition-all group outline-none">
+                                            <RefreshCw size={18} className={cn("transition-transform duration-500", isLoading && "animate-spin")} />
+                                        </button>
+                                    </HubTooltip>
+                                )}
+                            </div>
                         </div>
-                        <div className="flex items-center gap-4">
-                            <h2 className="text-2xl font-black italic uppercase tracking-tighter leading-none">
-                                {view === 'home' ? 'Home Feed' : 
-                                 view === 'explore' ? 'Discovery Hub' : 
-                                 view === 'friends' ? 'Friends' : 
-                                 view === 'messages' ? 'Private Messages' :
-                                 'Community Rules'}
-                            </h2>
-                            
-                            {view !== 'rules' && (
-                                <HubTooltip text="Refresh Feed" position="bottom">
-                                    <button onClick={fetchPosts} className="p-2 rounded-full hover:bg-primary/10 text-muted-foreground hover:text-primary transition-all group outline-none">
-                                        <RefreshCw size={18} className={cn("transition-transform duration-500", isLoading && "animate-spin")} />
-                                    </button>
-                                </HubTooltip>
-                            )}
-                        </div>
-                    </div>
 
-                    <div className="flex gap-8 ml-4 border-l border-border/10 pl-8">
-                        {view === 'home' || view === 'explore' ? (
-                            <>
-                                <button onClick={() => { setPosts([]); setActiveTab('recent'); }} className={cn("text-[10px] font-black uppercase tracking-[0.2em] relative transition-all outline-none", activeTab === 'recent' ? "text-foreground" : "text-muted-foreground opacity-50")}>
-                                    Recent {activeTab === 'recent' && <div className="absolute -bottom-2 left-0 right-0 h-0.5 bg-primary rounded-full transition-all" />}
-                                </button>
-                                <button onClick={() => { setPosts([]); setActiveTab('popular'); }} className={cn("text-[10px] font-black uppercase tracking-[0.2em] relative transition-all outline-none", activeTab === 'popular' ? "text-foreground" : "text-muted-foreground opacity-50")}>
-                                    Popular {activeTab === 'popular' && <div className="absolute -bottom-2 left-0 right-0 h-0.5 bg-primary rounded-full transition-all" />}
-                                </button>
-                                <button onClick={() => { setPosts([]); setActiveTab('prompts'); }} className={cn("text-[10px] font-black uppercase tracking-[0.2em] relative transition-all outline-none", activeTab === 'prompts' ? "text-foreground" : "text-muted-foreground opacity-50")}>
-                                    Prompts {activeTab === 'prompts' && <div className="absolute -bottom-2 left-0 right-0 h-0.5 bg-primary rounded-full" />}
-                                </button>
-                            </>
-                        ) : view === 'friends' ? (
-                            <>
-                                <button onClick={() => { setFriendsList([]); setFriendsTab('list'); }} className={cn("text-[10px] font-black uppercase tracking-[0.2em] relative transition-all outline-none", friendsTab === 'list' ? "text-foreground" : "text-muted-foreground opacity-50")}>
-                                    Accepted Friends {friendsTab === 'list' && <div className="absolute -bottom-2 left-0 right-0 h-0.5 bg-primary rounded-full transition-all" />}
-                                </button>
-                                <button onClick={() => { setFriendRequests([]); setFriendsTab('requests'); }} className={cn("text-[10px] font-black uppercase tracking-[0.2em] relative transition-all outline-none", friendsTab === 'requests' ? "text-foreground" : "text-muted-foreground opacity-50")}>
-                                    Requests 
-                                    {friendRequests.length > 0 && <span className="absolute -top-1 -right-2 w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse" />}
-                                    {friendsTab === 'requests' && <div className="absolute -bottom-2 left-0 right-0 h-0.5 bg-primary rounded-full transition-all" />}
-                                </button>
-                            </>
-                        ) : null}
+                        <div className="flex gap-8 ml-4 border-l border-border/10 pl-8">
+                            {view === 'home' || view === 'explore' ? (
+                                <>
+                                    <button onClick={() => { setPosts([]); setActiveTab('recent'); }} className={cn("text-[10px] font-black uppercase tracking-[0.2em] relative transition-all outline-none", activeTab === 'recent' ? "text-foreground" : "text-muted-foreground opacity-50")}>
+                                        Recent {activeTab === 'recent' && <div className="absolute -bottom-2 left-0 right-0 h-0.5 bg-primary rounded-full transition-all" />}
+                                    </button>
+                                    <button onClick={() => { setPosts([]); setActiveTab('popular'); }} className={cn("text-[10px] font-black uppercase tracking-[0.2em] relative transition-all outline-none", activeTab === 'popular' ? "text-foreground" : "text-muted-foreground opacity-50")}>
+                                        Popular {activeTab === 'popular' && <div className="absolute -bottom-2 left-0 right-0 h-0.5 bg-primary rounded-full transition-all" />}
+                                    </button>
+                                    <button onClick={() => { setPosts([]); setActiveTab('prompts'); }} className={cn("text-[10px] font-black uppercase tracking-[0.2em] relative transition-all outline-none", activeTab === 'prompts' ? "text-foreground" : "text-muted-foreground opacity-50")}>
+                                        Prompts {activeTab === 'prompts' && <div className="absolute -bottom-2 left-0 right-0 h-0.5 bg-primary rounded-full" />}
+                                    </button>
+                                </>
+                            ) : view === 'friends' ? (
+                                <>
+                                    <button onClick={() => { onUpdateFriendsList([]); setFriendsTab('list'); }} className={cn("text-[10px] font-black uppercase tracking-[0.2em] relative transition-all outline-none", friendsTab === 'list' ? "text-foreground" : "text-muted-foreground opacity-50")}>
+                                        Accepted Friends {friendsTab === 'list' && <div className="absolute -bottom-2 left-0 right-0 h-0.5 bg-primary rounded-full transition-all" />}
+                                    </button>
+                                    <button onClick={() => { setFriendRequests([]); setFriendsTab('requests'); }} className={cn("text-[10px] font-black uppercase tracking-[0.2em] relative transition-all outline-none", friendsTab === 'requests' ? "text-foreground" : "text-muted-foreground opacity-50")}>
+                                        Requests 
+                                        {friendRequests.length > 0 && <span className="absolute -top-1 -right-2 w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse" />}
+                                        {friendsTab === 'requests' && <div className="absolute -bottom-2 left-0 right-0 h-0.5 bg-primary rounded-full transition-all" />}
+                                    </button>
+                                </>
+                            ) : null}
+                        </div>
                     </div>
                 </div>
             </div>
-        </div>
+        )}
 
         <div className="flex-1 overflow-y-auto custom-scrollbar scroll-smooth">
           {view === 'rules' ? (
               <RulesView />
+          ) : activeProfileUserId ? (
+              <ProfileView 
+                userId={activeProfileUserId} 
+                currentUserId={user?.id}
+                onClose={() => onSetActiveProfileUserId(null)} 
+              />
           ) : view === 'messages' ? (
-              <div className="max-w-6xl mx-auto pt-6 pb-6 px-6 h-full">
+              <div className="max-w-6xl mx-auto pb-6 px-6 h-full">
                   <MessagesView 
                     user={user}
-                    friendsList={friendsList}
                     activeChatUserId={activeChatUserId}
-                    setActiveChatUserId={setActiveChatUserId}
                     onlineUserIds={onlineUserIds}
                     handleReportPost={handleReportPost}
                     handleBlockUser={handleBlockUser}
@@ -1239,6 +1594,7 @@ export function ChatHub({ onRunPrompt, view }: { onRunPrompt: (prompt: string) =
                     msgInput={msgInput}
                     setMsgInput={setMsgInput}
                     handleSendMessage={handleSendMessage}
+                    friendsList={friendsList}
                     blockedByMe={blockedByMe}
                     whoBlockedMe={whoBlockedMe}
                   />
@@ -1250,44 +1606,13 @@ export function ChatHub({ onRunPrompt, view }: { onRunPrompt: (prompt: string) =
                 
                 {(() => {
                     if (view === 'friends') {
-                        const list = friendsTab === 'list' ? friendsList : friendRequests;
                         return (
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                {list.length === 0 && !isLoading ? (
-                                    <div className="md:col-span-2 py-20 text-center animate-in fade-in zoom-in duration-500">
-                                        <Users size={40} className="mx-auto text-primary/10 mb-4" />
-                                        <h3 className="text-xl font-black uppercase tracking-tighter italic text-foreground/40">{friendsTab === 'list' ? 'No Accepted Friends' : 'No Pending Requests'}</h3>
-                                        <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/30 mt-2">{friendsTab === 'list' ? 'Connect with the community to build your circle!' : 'Check back later for new connections.'}</p>
-                                    </div>
-                                ) : (
-                                    list.map(f => (
-                                        <div key={f.user_id} className={cn("p-6 rounded-[32px] border transition-all flex items-center justify-between group/friend", friendsTab === 'requests' ? "border-amber-500/20" : "border-white/5 bg-white/5 hover:border-primary/20 shadow-sm")}>
-                                            <div className="flex items-center gap-4">
-                                                {f.avatar_url ? <img src={f.avatar_url} className="w-12 h-12 rounded-2xl object-cover" /> : <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center text-primary font-black italic">{f.display_name[0]}</div>}
-                                                <div>
-                                                    <div className="flex items-center gap-2">
-                                                        <h4 className="font-black italic text-lg tracking-tight">{f.display_name}</h4>
-                                                        <VerifiedBadge role={f.role} />
-                                                    </div>
-                                                    <p className="text-[9px] font-black uppercase tracking-[0.2em] text-muted-foreground/40">{friendsTab === 'requests' ? "Sent you a Request" : "Accepted Friend"}</p>
-                                                </div>
-                                            </div>
-                                            <div className="flex gap-2">
-                                                {friendsTab === 'list' ? (
-                                                    <>
-                                                        <button className="p-2 rounded-xl bg-white/5 hover:bg-primary/20 text-muted-foreground hover:text-primary transition-all opacity-0 group-hover/friend:opacity-100"><MessageCircle size={18} /></button>
-                                                        <button onClick={() => handleToggleFriend(f.user_id, 'accepted')} className="p-2 rounded-xl bg-white/5 hover:bg-red-500/20 text-muted-foreground hover:text-red-500 transition-all opacity-0 group-hover/friend:opacity-100"><Trash2 size={18} /></button>
-                                                    </>
-                                                ) : (
-                                                    <>
-                                                        <button onClick={() => handleAcceptRequest(f.user_id)} className="px-4 py-2 rounded-xl bg-emerald-500 text-white text-[10px] font-black uppercase tracking-widest hover:bg-emerald-600 transition-all">Accept</button>
-                                                        <button onClick={() => handleDeclineRequest(f.user_id)} className="px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-muted-foreground text-[10px] font-black uppercase tracking-widest hover:bg-white/10 hover:text-foreground transition-all">Decline</button>
-                                                    </>
-                                                )}
-                                            </div>
-                                        </div>
-                                    ))
-                                )}
+                            <div className="flex-1 flex flex-col items-center justify-center p-20 text-center opacity-20 min-h-[400px]">
+                                <Users size={48} className="mb-6 opacity-20" />
+                                <h3 className="text-2xl font-black uppercase tracking-tighter italic mb-3">Friends</h3>
+                                <p className="text-xs font-bold uppercase tracking-widest max-w-xs leading-relaxed">
+                                    Select a friend from the sidebar to view their profile or discover new connections in the "Explore" tab.
+                                </p>
                             </div>
                         );
                     }
@@ -1303,7 +1628,7 @@ export function ChatHub({ onRunPrompt, view }: { onRunPrompt: (prompt: string) =
                                 {activeTab === 'popular' ? <Flame size={32} className="text-primary opacity-20" /> : <Compass size={32} className="text-primary opacity-20" />}
                             </div>
                             <h3 className="text-2xl font-black uppercase tracking-tighter italic text-foreground/40 mb-2">{activeTab === 'popular' ? 'Silence in the Charts' : 'The Frontier is Quiet'}</h3>
-                            <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground/30 max-w-xs leading-relaxed">
+                            <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground/30 max-w-xs leading-relaxed mx-auto">
                                 {view === 'home' ? 'Follow more creators to see their latest discoveries right here.' : activeTab === 'popular' ? 'No posts have gained traction yet.' : "Looks like we're at the edge of the known hub."}
                             </p>
                         </div>
@@ -1354,5 +1679,5 @@ export function ChatHub({ onRunPrompt, view }: { onRunPrompt: (prompt: string) =
             placeholder="Why are you reporting this? (e.g. Spam, Harassment...)"
         />
     </div>
-  )
+  );
 }

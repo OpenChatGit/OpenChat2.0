@@ -1,6 +1,6 @@
 // Core types for the modular provider system
 
-export type ProviderType = 'ollama' | 'supabase-premium';
+export type ProviderType = 'ollama' | 'supabase-premium' | 'llama-cpp';
 
 export interface ImageAttachment {
   id: string;

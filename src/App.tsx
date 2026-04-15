@@ -128,6 +128,12 @@ function App() {
     }
   }
 
+  // Hub Messaging States (Lifted for Sidebar integration)
+  const [hubFriendsList, setHubFriendsList] = useState<any[]>([])
+  const [activeChatUserId, setActiveChatUserId] = useState<string | null>(null)
+  const [activeProfileUserId, setActiveProfileUserId] = useState<string | null>(null)
+  const [onlineUserIds, setOnlineUserIds] = useState<string[]>([])
+
   const handleSendMessageWithNewChat = async (content: string, images?: ImageAttachment[]) => {
     if (!selectedProvider || !selectedModel) {
       setShowSettings(true)
@@ -192,8 +198,18 @@ function App() {
             ) : activeTab === 'hub' ? (
               <HubSidebar 
                 activeSubTab={hubView}
-                onSubTabChange={setHubView}
+                onSubTabChange={(tab) => {
+                  setHubView(tab);
+                  if (tab !== 'messages') setActiveChatUserId(null);
+                  if (tab !== 'friends') setActiveProfileUserId(null);
+                }}
                 onOpenSettings={() => setShowSettings(true)} 
+                friendsList={hubFriendsList}
+                activeChatUserId={activeChatUserId}
+                setActiveChatUserId={setActiveChatUserId}
+                activeProfileUserId={activeProfileUserId}
+                setActiveProfileUserId={setActiveProfileUserId}
+                onlineUserIds={onlineUserIds}
               />
             ) : null}
         </div>
@@ -233,7 +249,18 @@ function App() {
             />
           </>
         ) : activeTab === 'hub' ? (
-          <ChatHub view={hubView} onRunPrompt={handleRunPrompt} />
+          <ChatHub 
+            view={hubView} 
+            onRunPrompt={handleRunPrompt}
+            friendsList={hubFriendsList}
+            onUpdateFriendsList={setHubFriendsList}
+            activeChatUserId={activeChatUserId}
+            onSetActiveChatUserId={setActiveChatUserId}
+            activeProfileUserId={activeProfileUserId}
+            onSetActiveProfileUserId={setActiveProfileUserId}
+            onlineUserIds={onlineUserIds}
+            onUpdateOnlineUserIds={setOnlineUserIds}
+          />
         ) : (
           <div className="flex-1 flex flex-col overflow-y-auto">
              <div className="p-8">

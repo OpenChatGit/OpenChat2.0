@@ -29,6 +29,7 @@ interface ChatInputProps {
   onCapabilitiesChange?: (capabilities: ModelInfo['capabilities']) => void
   pendingPrompt?: string
   onPromptConsumed?: () => void
+  showWebSearch?: boolean
 }
 
 export function ChatInput({
@@ -44,7 +45,8 @@ export function ChatInput({
   modelCapabilities,
   onCapabilitiesChange,
   pendingPrompt,
-  onPromptConsumed
+  onPromptConsumed,
+  showWebSearch = true
 }: ChatInputProps) {
   // Load input and images from localStorage on mount
   const [input, setInput] = useState(() => {
@@ -464,24 +466,26 @@ export function ChatInput({
                 </button>
 
                 {/* Web Search Toggle */}
-                <button
-                  type="button"
-                  onClick={onToggleAutoSearch}
-                  className="w-8 h-8 rounded-full flex items-center justify-center transition-all flex-shrink-0 input-icon-button"
-                  style={{
-                    backgroundColor: autoSearchEnabled ? 'rgba(59, 130, 246, 0.1)' : 'transparent'
-                  }}
-                  title={autoSearchEnabled ? 'Web search enabled' : 'Web search disabled'}
-                  aria-label={autoSearchEnabled ? 'Disable web search' : 'Enable web search'}
-                >
-                  <Globe
-                    className="w-4 h-4 transition-colors"
+                {showWebSearch && (
+                  <button
+                    type="button"
+                    onClick={onToggleAutoSearch}
+                    className="w-8 h-8 rounded-full flex items-center justify-center transition-all flex-shrink-0 input-icon-button"
                     style={{
-                      color: autoSearchEnabled ? 'rgb(59, 130, 246)' : 'var(--color-icon-muted)',
-                      strokeWidth: 2
+                      backgroundColor: autoSearchEnabled ? 'rgba(59, 130, 246, 0.1)' : 'transparent'
                     }}
-                  />
-                </button>
+                    title={autoSearchEnabled ? 'Web search enabled' : 'Web search disabled'}
+                    aria-label={autoSearchEnabled ? 'Disable web search' : 'Enable web search'}
+                  >
+                    <Globe
+                      className="w-4 h-4 transition-colors"
+                      style={{
+                        color: autoSearchEnabled ? 'rgb(59, 130, 246)' : 'var(--color-icon-muted)',
+                        strokeWidth: 2
+                      }}
+                    />
+                  </button>
+                )}
 
                 {/* Hidden File Input */}
                 <input

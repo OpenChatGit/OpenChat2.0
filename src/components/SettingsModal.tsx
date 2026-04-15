@@ -33,8 +33,8 @@ interface SettingsModalProps {
   defaultTab?: string
 }
 
-type Tab = 'settings' | 'websearch' | 'cuda' | 'account' | 'provider-ollama' | 'docs-cloud' | 'docs-pricing'
-type ProviderType = 'ollama'
+type Tab = 'settings' | 'websearch' | 'cuda' | 'account' | 'provider-ollama' | 'provider-llama-cpp' | 'docs-cloud' | 'docs-pricing'
+type ProviderType = 'ollama' | 'llama-cpp'
 
 export function SettingsModal({
   providers,
@@ -74,7 +74,8 @@ export function SettingsModal({
   ]
 
   const providerTabs = [
-    { id: 'provider-ollama' as Tab, label: 'Ollama', providerType: 'ollama' as ProviderType }
+    { id: 'provider-ollama' as Tab, label: 'Ollama', providerType: 'ollama' as ProviderType },
+    { id: 'provider-llama-cpp' as Tab, label: 'llama.cpp', providerType: 'llama-cpp' as ProviderType }
   ]
 
   const docsTabs = [

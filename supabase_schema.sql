@@ -30,6 +30,13 @@ CREATE TABLE public.user_settings (
   is_verified BOOLEAN DEFAULT false,
   stack JSONB DEFAULT '[]'::jsonb,
   theme TEXT DEFAULT 'system',
+  bio TEXT,
+  readme TEXT,
+  github_url TEXT,
+  reddit_url TEXT,
+  website_url TEXT,
+  profile_banner_url TEXT,
+  profile_theme_color TEXT DEFAULT '#3b82f6',
   created_at TIMESTAMPTZ DEFAULT now(),
   updated_at TIMESTAMPTZ DEFAULT now()
 );
