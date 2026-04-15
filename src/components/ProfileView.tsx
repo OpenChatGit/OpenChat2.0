@@ -6,10 +6,13 @@ import {
     Edit3,
     UserPlus,
     UserMinus,
-    Code
+    Code,
+    LayoutGrid,
+    X
 } from 'lucide-react';
+import { VerifiedBadge } from './VerifiedBadge';
 import { useAuth } from '../hooks/useAuth';
-import { getSafeSession, supabaseAnonKey } from '../lib/supabase';
+import { supabase, getSafeSession, supabaseAnonKey } from '../lib/supabase';
 import { cn } from '../lib/utils';
 import DOMPurify from 'dompurify';
 import { marked } from 'marked';
@@ -39,9 +42,8 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
     const [canvasCode, setCanvasCode] = useState('');
     const [isSaving, setIsSaving] = useState(false);
     const [activeTab, setActiveTab] = useState<'overview' | 'posts' | 'prompts'>('overview');
-
+    const [isFullLayout, setIsFullLayout] = useState(false);
     const isOwnProfile = userId === currentUserId;
-    const isFullLayout = profile?.theme === 'canvas';
 
     useEffect(() => {
         fetchProfileData();
@@ -49,6 +51,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
 
     const hubBridgeScript = `
         window.hub = {
+            profileId: "${userId}",
             fetch: (options) => {
                 return new Promise((resolve, reject) => {
                     const id = Math.random().toString(36).substring(7);
@@ -74,7 +77,6 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                     const session = await getSafeSession();
                     const token = session?.access_token;
                     const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-                    const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
                     const response = await fetch(`${supabaseUrl}${options.endpoint}`, {
                         method: options.method || 'GET',
@@ -112,7 +114,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
             }
 
             const makeRequest = async (currentSafeToken: string) => {
-                const [pRes, cRes, fCountRes, fIngRes, fStatRes] = await Promise.all([
+                const [pRes, cRes, fCountRes, fIngRes, fStatRes, pCountRes] = await Promise.all([
                     fetch(`${supabaseUrl}/rest/v1/user_settings?user_id=eq.${userId}&select=*`, {
                         headers: { 'apikey': supabaseAnonKey, 'Authorization': `Bearer ${currentSafeToken}` }
                     }),
@@ -127,9 +129,12 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                     }),
                     currentUserId ? fetch(`${supabaseUrl}/rest/v1/hub_follows?follower_id=eq.${currentUserId}&following_id=eq.${userId}&select=*`, {
                         headers: { 'apikey': supabaseAnonKey, 'Authorization': `Bearer ${currentSafeToken}` }
-                    }) : Promise.resolve({ ok: true, json: () => Promise.resolve([]) } as any)
+                    }) : Promise.resolve({ ok: true, json: () => Promise.resolve([]) } as any),
+                    fetch(`${supabaseUrl}/rest/v1/hub_posts?user_id=eq.${userId}&select=likes_count,forks_count`, {
+                        headers: { 'apikey': supabaseAnonKey, 'Authorization': `Bearer ${currentSafeToken}` }
+                    })
                 ]);
-                return { pRes, cRes, fCountRes, fIngRes, fStatRes };
+                return { pRes, cRes, fCountRes, fIngRes, fStatRes, pCountRes };
             };
 
             let results = await makeRequest(token);
@@ -137,50 +142,54 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
             // If any critical request failed with 401, try one refresh
             if (results.pRes.status === 401 || results.cRes.status === 401) {
                 console.warn('[ProfileView] 401 Detected. Forcing session refresh...');
-                const { data: { session: newSession } } = await import('../lib/supabase').then(m => m.supabase.auth.refreshSession());
+                const { data: { session: newSession } } = await supabase.auth.refreshSession();
                 if (newSession?.access_token) {
                     results = await makeRequest(newSession.access_token);
                 }
             }
 
-            const { pRes, cRes, fCountRes, fIngRes, fStatRes } = results;
+            const { pRes, cRes, fCountRes, fIngRes, fStatRes, pCountRes } = results;
 
-            let mergedProfile = null;
+            // Read all data properly (exactly once)
+            const userData = pRes.ok ? (await pRes.json())[0] : null;
+            const canvasData = cRes.ok ? (await cRes.json())[0] : null;
+            const followers = fCountRes.ok ? await fCountRes.json() : [];
+            const following = fIngRes.ok ? await fIngRes.json() : [];
+            const followStatus = fStatRes.ok ? await fStatRes.json() : [];
+            const postsData = pCountRes.ok ? await pCountRes.json() : [];
 
-            if (pRes.ok) {
-                const profiles = await pRes.json();
-                if (profiles[0]) {
-                    mergedProfile = { ...profiles[0] };
-                    setReadmeContent(profiles[0].readme || '');
-                }
-            }
-
-            if (cRes.ok) {
-                const canvasData = await cRes.json();
-                if (canvasData[0]) {
-                    setCanvasCode(canvasData[0].content || '');
-                    if (mergedProfile) {
-                        mergedProfile.theme = canvasData[0].layout_type;
-                    }
-                }
+            if (!userData) {
+                console.error('[ProfileView] Failed to load essential user data');
+                setIsLoading(false);
+                return;
             }
 
-            if (mergedProfile) {
-                setProfile(mergedProfile);
-            }
+            // Calculate Aggregates
+            const totalPosts = postsData.length;
+            const totalLikes = postsData.reduce((sum: number, p: any) => sum + (p.likes_count || 0), 0);
+            const totalForks = postsData.reduce((sum: number, p: any) => sum + (p.forks_count || 0), 0);
 
-            if (fCountRes.ok) {
-                const data = await fCountRes.json();
-                setFollowersCount(data.length);
-            }
-            if (fIngRes.ok) {
-                const data = await fIngRes.json();
-                setFollowingCount(data.length);
-            }
-            if (fStatRes.ok) {
-                const data = await fStatRes.json();
-                setIsFollowing(data.length > 0);
-            }
+            // Merge into final profile state
+            const mergedProfile = {
+                ...userData,
+                canvas: canvasData,
+                theme: canvasData?.layout_type || 'standard',
+                followers,
+                following,
+                isFollowing: followStatus.length > 0,
+                totalPosts,
+                totalLikes,
+                totalForks
+            };
+
+            setProfile(mergedProfile);
+            setFollowersCount(followers.length);
+            setFollowingCount(following.length);
+            setIsFollowing(followStatus.length > 0);
+            setReadmeContent(userData.readme || '');
+            if (canvasData) setCanvasCode(canvasData.content || '');
+            setIsFullLayout(mergedProfile.theme === 'canvas' || mergedProfile.theme === 'full');
+            setIsLoading(false);
 
         } catch (error) {
             console.error('Error fetching profile:', error);
@@ -189,15 +198,22 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
         }
     };
 
-    const sanitizeCustomCode = (code: string) => {
-        // PREVENTION: "Glassworm" Unicode / Bidi Attack detection
-        // These characters (RTL Override, etc.) can be used to hide malicious logic
-        const bidiChars = /[\u202A-\u202E\u2066-\u2069]/g;
-        if (bidiChars.test(code)) {
-            console.warn('[Security] Detected suspicious Unicode Bidi characters. Neutralizing...');
-            return code.replace(bidiChars, '');
-        }
-        return code;
+    const isPremium = profile?.role === 'premium' || profile?.role === 'admin' || profile?.role === 'vip' || profile?.role === 'owner';
+    
+    // DEBUG: Remove this in production
+    if (profile) console.log(`[ProfileView] Viewer status for @${profile.username}: ${isPremium ? 'PREMIUM (Scripts Enabled)' : 'STANDARD (Scripts Blocked)'} | Role: ${profile.role}`);
+
+    const sanitizeCustomCode = (code: string, forcePremium?: boolean) => {
+        if (!code) return '';
+        
+        // Premium bypass - Ultimate freedom for paying users/admins
+        if (isPremium || forcePremium) return code;
+
+        const config = {
+            ALLOWED_TAGS: ['div', 'span', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'br', 'b', 'i', 'strong', 'em', 'video', 'source', 'iframe', 'img', 'canvas', 'a'],
+            ALLOWED_ATTR: ['class', 'id', 'src', 'href', 'title', 'alt', 'width', 'height', 'style', 'autoplay', 'loop', 'muted', 'playsinline', 'controls']
+        };
+        return DOMPurify.sanitize(code, config);
     };
 
     const handleToggleFollow = async () => {
@@ -244,9 +260,10 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
             
             if (!token) return;
 
-            const cleanCanvasCode = sanitizeCustomCode(canvasCode);
+            const cleanCanvasCode = sanitizeCustomCode(canvasCode, isPremium);
 
-            await fetch(`${supabaseUrl}/rest/v1/hub_profile_custom?apikey=${supabaseAnonKey}`, {
+            // 1. Update Custom Canvas (UPSERT)
+            await fetch(`${supabaseUrl}/rest/v1/hub_profile_custom`, {
                 method: 'POST',
                 headers: { 
                     'apikey': supabaseAnonKey, 
@@ -262,7 +279,8 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                 })
             });
 
-            await fetch(`${supabaseUrl}/rest/v1/user_settings?user_id=eq.${userId}&apikey=${supabaseAnonKey}`, {
+            // 2. Update User Settings (Bio & Banner)
+            await fetch(`${supabaseUrl}/rest/v1/user_settings?user_id=eq.${userId}`, {
                 method: 'PATCH',
                 headers: { 
                     'apikey': supabaseAnonKey, 
@@ -284,50 +302,77 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
         }
     };
 
-    const renderCanvasIFrame = (content: string) => {
-        const safeContent = sanitizeCustomCode(content);
+    const blobUrl = React.useMemo(() => {
         const fullContent = `
             <!DOCTYPE html>
             <html lang="en">
             <head>
                 <meta charset="UTF-8">
+                <meta name="referrer" content="no-referrer">
                 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                <meta http-equiv="Content-Security-Policy" content="default-src 'self' https: 'unsafe-inline' 'unsafe-eval' data:; img-src 'self' https: data:;">
+                <script>
+                    ${hubBridgeScript}
+                </script>
                 <script src="https://cdn.tailwindcss.com"></script>
-                <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;900&display=swap" rel="stylesheet">
-                <script>${hubBridgeScript}</script>
+                <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@100;300;400;700;900&display=swap" rel="stylesheet">
                 <style>
                     body { 
-                        margin: 0; 
-                        padding: 0; 
-                        background: transparent; 
-                        min-height: 100vh;
+                        margin: 0; padding: 0; min-height: 100vh;
                         font-family: 'Outfit', sans-serif;
+                        background: #000;
+                        position: relative; overflow-x: hidden;
                     }
-                    ::-webkit-scrollbar { width: 8px; }
-                    ::-webkit-scrollbar-track { background: transparent; }
-                    ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 10px; }
-                    ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.2); }
+                    video { 
+                        position: fixed; top: 0; left: 0;
+                        width: 100%; height: 100%; object-fit: cover;
+                        z-index: -10; 
+                    }
                 </style>
+                <script>
+                    window.addEventListener('load', () => {
+                        const v = document.querySelector('video');
+                        if (v) {
+                            v.oncanplay = () => v.play().catch(console.error);
+                            if (v.readyState >= 3) v.play().catch(console.error);
+                        }
+                    });
+                </script>
             </head>
             <body>
-                ${safeContent}
+                ${sanitizeCustomCode(canvasCode, isPremium)}
             </body>
             </html>
         `;
+        const blob = new Blob([fullContent], { type: 'text/html' });
+        return URL.createObjectURL(blob);
+    }, [canvasCode]);
+
+    const renderCanvasIFrame = () => {
+        if (isLoading || !profile) return null;
 
         return (
             <iframe 
-                srcDoc={fullContent}
+                key={isPremium ? 'premium-canvas' : 'standard-canvas'}
+                src={blobUrl}
                 title="Profile Canvas"
-                className="w-full h-screen border-none overflow-auto"
-                sandbox="allow-scripts allow-popups allow-forms"
+                className="w-full h-screen border-none overflow-hidden bg-black"
+                sandbox={cn(
+                    "allow-popups allow-forms allow-modals allow-same-origin",
+                    isPremium && "allow-scripts"
+                )}
+                allow="autoplay; encrypted-media; fullscreen"
             />
         );
     };
 
     const renderMarkdown = (content: string) => {
         try {
+            // Configure marked for better GFM support
+            marked.setOptions({
+                gfm: true,
+                breaks: true,
+            });
+
             const rawHtml = marked.parse(content) as string;
             const standardConfig = {
                 ALLOWED_TAGS: [
@@ -357,10 +402,10 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
     return (
         <div className={cn(
             "h-full flex flex-col overflow-hidden font-['Outfit'] relative",
-            !profile?.profile_banner_url ? "bg-background/95 backdrop-blur-3xl" : "bg-[#0a0a0a]"
+            isFullLayout ? "bg-transparent" : (!profile?.profile_banner_url ? "bg-background/95 backdrop-blur-3xl" : "bg-[#0a0a0a]")
         )}>
-            {/* Steam-Style Wallpaper Engine */}
-            {profile?.profile_banner_url && (
+            {/* Steam-Style Wallpaper Engine - Only in Standard view */}
+            {profile?.profile_banner_url && !isFullLayout && (
                 <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none">
                     {profile.profile_banner_url.match(/\.(mp4|webm|ogg)$/) ? (
                         <video 
@@ -379,8 +424,8 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                             alt="Background"
                         />
                     )}
-                    {/* Minimal Darkening for contrast - NO BLUR */}
-                    <div className="absolute inset-0 bg-black/30" />
+                    {/* Minimal Darkening for contrast - Stronger for readability */}
+                    <div className="absolute inset-0 bg-black/50" />
                 </div>
             )}
 
@@ -398,9 +443,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                 {isOwnProfile && (
                     <div className="flex p-1 bg-black/40 border border-white/10 rounded-xl gap-1">
                         <button 
-                            onClick={() => {
-                                setProfile({ ...profile, theme: 'standard' });
-                            }}
+                            onClick={() => setIsFullLayout(false)}
                             className={cn(
                                 "px-3 py-1.5 rounded-lg text-[8px] font-black uppercase tracking-widest transition-all",
                                 !isFullLayout ? "bg-blue-600 text-white shadow-lg shadow-blue-600/20" : "text-white/30 hover:text-white/60"
@@ -409,9 +452,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                             Standard
                         </button>
                         <button 
-                            onClick={() => {
-                                setProfile({ ...profile, theme: 'canvas' });
-                            }}
+                            onClick={() => setIsFullLayout(true)}
                             className={cn(
                                 "px-3 py-1.5 rounded-lg text-[8px] font-black uppercase tracking-widest transition-all",
                                 isFullLayout ? "bg-blue-600 text-white shadow-lg shadow-blue-600/20" : "text-white/30 hover:text-white/60"
@@ -444,226 +485,223 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                     {isFullLayout ? (
                         <div className="relative group/readme min-h-screen">
                             {isEditingReadme ? (
-                                <div className="p-8 max-w-5xl mx-auto pt-24">
-                                    <div className="flex items-center justify-between mb-4">
-                                        <div className="flex flex-col gap-1">
-                                            <h3 className="text-2xl font-black uppercase tracking-tighter text-white">Profile <span className="text-primary italic">Designer</span></h3>
-                                            <div className="flex p-1.5 bg-black/40 border border-white/10 rounded-2xl w-fit gap-1 mt-2">
-                                                <button 
-                                                    onClick={() => setProfile({ ...profile, theme: 'standard' })}
-                                                    className={cn(
-                                                        "px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all",
-                                                        !isFullLayout ? "bg-blue-600 text-white shadow-lg shadow-blue-600/20 border border-blue-400/20" : "text-white/30 hover:text-white/60 hover:bg-white/5"
-                                                    )}
-                                                >
-                                                    Standard
-                                                </button>
-                                                <button 
-                                                    onClick={() => setProfile({ ...profile, theme: 'canvas' })}
-                                                    className={cn(
-                                                        "px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all",
-                                                        isFullLayout ? "bg-blue-600 text-white shadow-lg shadow-blue-600/20 border border-blue-400/20" : "text-white/30 hover:text-white/60 hover:bg-white/5"
-                                                    )}
-                                                >
-                                                    Custom Canvas
+                                <div className="fixed inset-0 z-[100] bg-black/95 backdrop-blur-3xl p-6 md:p-12">
+                                    <div className="max-w-7xl mx-auto h-full flex flex-col gap-6">
+                                        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+                                            <div className="space-y-1">
+                                                <h3 className="text-3xl font-black uppercase tracking-tighter text-white">Profile <span className="text-primary italic">Designer</span></h3>
+                                                <div className="flex p-1.5 bg-black/40 border border-white/10 rounded-2xl w-fit gap-1 mt-2">
+                                                    <button 
+                                                        onClick={() => setIsFullLayout(false)}
+                                                        className={cn(
+                                                            "px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all",
+                                                            !isFullLayout ? "bg-blue-600 text-white shadow-lg shadow-blue-600/20 border border-blue-400/20" : "text-white/30 hover:text-white/60 hover:bg-white/5"
+                                                        )}
+                                                    >
+                                                        Standard
+                                                    </button>
+                                                    <button 
+                                                        onClick={() => setIsFullLayout(true)}
+                                                        className={cn(
+                                                            "px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all",
+                                                            isFullLayout ? "bg-blue-600 text-white shadow-lg shadow-blue-600/20 border border-blue-400/20" : "text-white/30 hover:text-white/60 hover:bg-white/5"
+                                                        )}
+                                                    >
+                                                        Custom Canvas
+                                                    </button>
+                                                </div>
+                                            </div>
+                                            <div className="flex gap-2">
+                                                <button onClick={() => setIsEditingReadme(false)} className="px-6 py-3 rounded-2xl bg-white/5 hover:bg-white/10 text-[10px] font-black uppercase tracking-widest text-white/40">Cancel</button>
+                                                <button onClick={saveLayout} disabled={isSaving} className="px-10 py-3 rounded-2xl bg-blue-600 text-white text-[10px] font-black uppercase tracking-widest shadow-xl shadow-blue-600/30 hover:scale-105 active:scale-95 transition-all">
+                                                    {isSaving ? "Saving..." : "Apply & Save"}
                                                 </button>
                                             </div>
                                         </div>
-                                        <div className="flex gap-2">
-                                            <button onClick={() => setIsEditingReadme(false)} className="px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-[10px] font-black uppercase">Cancel</button>
-                                            <button onClick={saveLayout} disabled={isSaving} className="px-6 py-2 rounded-xl bg-blue-600 text-white text-[10px] font-black uppercase disabled:opacity-50 shadow-lg shadow-blue-600/20 border border-blue-400/20">
-                                                {isSaving ? "Saving..." : (isFullLayout ? "Apply & Save" : "Save Changes")}
-                                            </button>
+                                        <div className="flex-1 rounded-[40px] border border-white/10 bg-black/60 backdrop-blur-md p-1 shadow-2xl overflow-hidden relative min-h-0">
+                                            <Editor
+                                                height="100%"
+                                                defaultLanguage={isFullLayout ? "html" : "markdown"}
+                                                value={isFullLayout ? canvasCode : readmeContent}
+                                                theme="vs-dark"
+                                                onChange={(value) => isFullLayout ? setCanvasCode(value || '') : setReadmeContent(value || '')}
+                                                options={{
+                                                    minimap: { enabled: false },
+                                                    fontSize: 14,
+                                                    lineNumbers: 'on',
+                                                    roundedSelection: true,
+                                                    scrollBeyondLastLine: false,
+                                                    padding: { top: 40, left: 40 },
+                                                    fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+                                                    cursorStyle: 'block',
+                                                    wordWrap: 'on',
+                                                    scrollbar: {
+                                                        vertical: 'auto',
+                                                        horizontal: 'hidden'
+                                                    }
+                                                }}
+                                            />
                                         </div>
-                                    </div>
-                                    <div className="w-full h-[70vh] rounded-2xl overflow-hidden border border-white/10 bg-black/40 backdrop-blur-md shadow-2xl">
-                                        <Editor
-                                            height="100%"
-                                            defaultLanguage={isFullLayout ? "html" : "markdown"}
-                                            value={isFullLayout ? canvasCode : readmeContent}
-                                            theme="vs-dark"
-                                            onChange={(value) => isFullLayout ? setCanvasCode(value || '') : setReadmeContent(value || '')}
-                                            options={{
-                                                minimap: { enabled: false },
-                                                fontSize: 14,
-                                                lineNumbers: 'on',
-                                                roundedSelection: true,
-                                                scrollBeyondLastLine: false,
-                                                padding: { top: 20 },
-                                                fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
-                                                cursorStyle: 'block',
-                                                wordWrap: 'on',
-                                                scrollbar: {
-                                                    vertical: 'hidden',
-                                                    horizontal: 'hidden'
-                                                }
-                                            }}
-                                        />
                                     </div>
                                 </div>
                             ) : (
-                                <div className="animate-in fade-in duration-1000 w-full h-full min-h-screen bg-black">
-                                    {renderCanvasIFrame(canvasCode || '')}
+                                <div className="animate-in fade-in duration-1000 w-full h-full min-h-screen bg-transparent relative">
+                                    {renderCanvasIFrame()}
                                 </div>
                             )}
                         </div>
                     ) : (
-                        <div className="space-y-12 pt-12">
-                            {/* Profile Identity Hero */}
-                            <div className="flex flex-col lg:flex-row items-start gap-12">
-                                <div className="relative group/avatar">
-                                    <div className="w-48 h-48 rounded-[40px] overflow-hidden bg-white/5 border border-white/10 shadow-2xl relative z-10 transition-transform duration-500 group-hover/avatar:scale-105">
-                                        <img 
-                                            src={profile?.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${userId}`}
-                                            className="w-full h-full object-cover"
-                                            alt={profile?.display_name}
-                                        />
-                                    </div>
-                                    <div className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-blue-600/20 to-transparent blur-2xl opacity-0 group-hover/avatar:opacity-100 transition-opacity duration-700" />
+                        <div className="space-y-8 pt-10">
+                            {/* Compact Profile Identity */}
+                            <div className="flex flex-col md:flex-row gap-6 items-start md:items-end px-4">
+                                <div className="relative group">
+                                    <div className="absolute -inset-1 bg-gradient-to-tr from-blue-600 to-purple-600 rounded-3xl blur opacity-20 group-hover:opacity-40 transition duration-1000"></div>
+                                    <img 
+                                        src={profile?.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${userId}`} 
+                                        className="relative w-20 h-20 md:w-32 md:h-32 rounded-3xl object-cover border border-white/20 shadow-xl"
+                                        alt={profile?.display_name}
+                                    />
                                 </div>
-
-                                <div className="flex-1 space-y-6">
-                                    <div className="space-y-2">
-                                        <div className="flex items-center gap-4">
-                                            <h1 className="text-6xl font-black italic uppercase tracking-tighter text-white leading-none">
-                                                {profile?.display_name || 'Anonymous User'}
-                                            </h1>
-                                            {isFollowing && (
-                                                <div className="px-3 py-1 rounded-lg bg-blue-500/10 border border-blue-500/20 text-[10px] font-black text-blue-400 uppercase tracking-widest animate-pulse">
-                                                    Following
-                                                </div>
-                                            )}
-                                        </div>
-                                        <div className="flex items-center gap-3 text-white/30 text-sm font-black uppercase tracking-[0.3em] pl-1">
-                                            <span>@{profile?.username || 'user'}</span>
-                                            <span className="w-1 h-1 rounded-full bg-white/10" />
-                                            <span className="text-blue-400/60">Hub Pioneer</span>
+                                <div className="flex-1 space-y-3">
+                                    <div className="space-y-1">
+                                        <h1 className="text-3xl md:text-5xl font-black italic tracking-tighter text-white uppercase leading-none drop-shadow-xl">
+                                            {profile?.display_name || 'Anonymous User'}
+                                        </h1>
+                                        <div className="flex items-center gap-3">
+                                            <p className="text-[10px] md:text-xs font-black uppercase tracking-[0.4em] text-white/40">
+                                                @{profile?.username || 'user'}
+                                            </p>
+                                            <VerifiedBadge role={profile?.role} />
                                         </div>
                                     </div>
-
-                                    <div className="flex flex-wrap gap-4">
-                                        <div className="flex gap-4 p-1.5 bg-white/5 border border-white/5 rounded-2xl backdrop-blur-3xl">
-                                            <div className="px-6 py-3 text-center border-r border-white/5">
-                                                <p className="text-2xl font-black text-white">{followersCount}</p>
-                                                <p className="text-[9px] uppercase font-black tracking-widest text-white/20 mt-1">Followers</p>
+                                    
+                                    <div className="flex flex-wrap gap-3">
+                                        <div className="flex gap-4 p-2.5 bg-black/40 border border-white/10 rounded-xl backdrop-blur-md">
+                                            <div className="flex items-center gap-2 px-2 border-r border-white/10">
+                                                <span className="text-xs font-black text-white">{followersCount}</span>
+                                                <span className="text-[8px] uppercase font-black tracking-widest text-white/20">Followers</span>
                                             </div>
-                                            <div className="px-6 py-3 text-center">
-                                                <p className="text-2xl font-black text-white">{followingCount}</p>
-                                                <p className="text-[9px] uppercase font-black tracking-widest text-white/20 mt-1">Following</p>
+                                            <div className="flex items-center gap-2 px-2">
+                                                <span className="text-xs font-black text-white">{followingCount}</span>
+                                                <span className="text-[8px] uppercase font-black tracking-widest text-white/20">Following</span>
                                             </div>
                                         </div>
 
-                                        <div className="flex gap-3">
-                                            {!isOwnProfile && (
-                                                <button 
-                                                    onClick={handleToggleFollow}
-                                                    className={cn(
-                                                        "px-8 py-4 rounded-2xl font-black uppercase text-xs tracking-widest transition-all shadow-2xl flex items-center gap-3",
-                                                        isFollowing 
-                                                            ? "bg-white/5 text-white border border-white/10 hover:bg-red-500/10 hover:text-red-500 hover:border-red-500/20" 
-                                                            : "bg-blue-600 text-white shadow-blue-600/20 hover:scale-[1.02] active:scale-[0.98]"
-                                                    )}
-                                                >
-                                                    {isFollowing ? <UserMinus size={16} /> : <UserPlus size={16} />}
-                                                    {isFollowing ? "Unfollow" : "Follow"}
-                                                </button>
-                                            )}
+                                        {!isOwnProfile && (
                                             <button 
-                                                onClick={() => onSetActiveChatUserId(userId)}
-                                                className="px-8 py-4 rounded-2xl bg-white/5 text-white border border-white/10 font-black uppercase text-xs tracking-widest hover:bg-white/10 transition-all shadow-2xl flex items-center gap-3"
+                                                onClick={handleToggleFollow}
+                                                className={cn(
+                                                    "px-6 py-2.5 rounded-xl font-black uppercase text-[10px] tracking-widest transition-all shadow-xl flex items-center gap-2",
+                                                    isFollowing 
+                                                        ? "bg-white/5 text-white border border-white/10 hover:text-red-500 hover:border-red-500/20" 
+                                                        : "bg-blue-600 text-white shadow-blue-600/20 hover:scale-105"
+                                                )}
                                             >
-                                                <MessageSquare size={16} />
-                                                Send Message
+                                                {isFollowing ? <UserMinus size={14} /> : <UserPlus size={14} />}
+                                                {isFollowing ? "Unfollow" : "Follow"}
                                             </button>
-                                        </div>
+                                        )}
+                                        <button 
+                                            onClick={() => onSetActiveChatUserId(userId)}
+                                            className="px-6 py-2.5 rounded-xl bg-black/40 text-white border border-white/10 font-black uppercase text-[10px] tracking-widest hover:bg-white/10 transition-all shadow-xl flex items-center gap-2"
+                                        >
+                                            <MessageSquare size={14} />
+                                            Message
+                                        </button>
                                     </div>
                                 </div>
                             </div>
 
                             {/* Dashboard Content Grid */}
-                            <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
-                                {/* Side Column: Navigation & Info */}
-                                <div className="lg:col-span-3 space-y-10">
-                                    <div className="space-y-4">
-                                        <p className="text-[10px] font-black uppercase tracking-[0.4em] text-white/20 pl-4">Directory</p>
-                                        <div className="space-y-1.5">
-                                            {['overview', 'posts', 'prompts'].map((tab) => (
+                            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 px-2">
+                                {/* Side Column: Navigation & Stats */}
+                                <div className="lg:col-span-3 space-y-6">
+                                    <div className="rounded-[40px] border border-white/10 bg-black/60 backdrop-blur-xl p-6 shadow-2xl">
+                                        <p className="text-[10px] font-black uppercase tracking-[0.4em] text-white/20 mb-6 pl-4">Directory</p>
+                                        <div className="space-y-1">
+                                            {[
+                                                { id: 'overview', icon: LayoutGrid, label: 'Overview' },
+                                                { id: 'posts', icon: MessageSquare, label: 'Posts' },
+                                                { id: 'prompts', icon: Code, label: 'Prompts' }
+                                            ].map((item) => (
                                                 <button 
-                                                    key={tab}
-                                                    onClick={() => setActiveTab(tab as any)}
+                                                    key={item.id}
+                                                    onClick={() => setActiveTab(item.id as any)}
                                                     className={cn(
-                                                        "w-full flex items-center gap-4 px-6 py-4 rounded-3xl text-xs font-black uppercase tracking-widest transition-all",
-                                                        activeTab === tab 
-                                                            ? "bg-blue-600 text-white shadow-xl shadow-blue-600/20" 
-                                                            : "text-white/40 hover:bg-white/5 hover:text-white/60"
+                                                        "w-full flex items-center gap-4 px-6 py-4 rounded-2xl transition-all duration-300",
+                                                        activeTab === item.id 
+                                                            ? "bg-blue-600 text-white shadow-lg shadow-blue-600/30 translate-x-1" 
+                                                            : "text-white/40 hover:text-white hover:bg-white/5"
                                                     )}
                                                 >
-                                                    <div className={cn("w-1.5 h-1.5 rounded-full", activeTab === tab ? "bg-white" : "bg-white/10")} />
-                                                    {tab}
+                                                    <item.icon className={cn("w-4 h-4", activeTab === item.id ? "text-white" : "text-white/20")} />
+                                                    <span className="text-[10px] font-black uppercase tracking-widest">{item.label}</span>
                                                 </button>
                                             ))}
                                         </div>
                                     </div>
 
-                                    <div className="p-8 rounded-[40px] bg-white/5 border border-white/5 backdrop-blur-md space-y-6">
-                                        <p className="text-[10px] font-black uppercase tracking-[0.4em] text-white/20">Discovery Stats</p>
-                                        <div className="space-y-4">
-                                            <div className="flex items-center justify-between">
-                                                <span className="text-[11px] font-bold text-white/40">Total Reach</span>
-                                                <span className="text-sm font-black text-white italic">2.4k</span>
-                                            </div>
-                                            <div className="flex items-center justify-between">
-                                                <span className="text-[11px] font-bold text-white/40">Forks</span>
-                                                <span className="text-sm font-black text-white italic">128</span>
-                                            </div>
-                                            <div className="flex items-center justify-between">
-                                                <span className="text-[11px] font-bold text-white/40">Likes</span>
-                                                <span className="text-sm font-black text-white italic">892</span>
-                                            </div>
+                                    <div className="rounded-[40px] border border-white/10 bg-black/60 backdrop-blur-xl p-8 shadow-2xl transition-all hover:border-white/20">
+                                        <div className="flex items-center justify-between mb-8">
+                                            <p className="text-[10px] font-black uppercase tracking-[0.4em] text-white/30">Social Activity</p>
+                                            <Zap className="w-3 h-3 text-yellow-400 group-hover:scale-125 transition-transform" />
+                                        </div>
+                                        <div className="space-y-6">
+                                            {[
+                                                { label: 'Beiträge', value: profile?.totalPosts || 0 },
+                                                { label: 'Community Likes', value: profile?.totalLikes || 0 },
+                                                { label: 'Forks', value: profile?.totalForks || 0 }
+                                            ].map((stat) => (
+                                                <div key={stat.label} className="flex justify-between items-end group/stat">
+                                                    <span className="text-[10px] font-black uppercase tracking-widest text-white/20 italic group-hover/stat:text-white/40 transition-colors">{stat.label}</span>
+                                                    <span className="text-2xl font-black text-white/90 font-mono tracking-tighter drop-shadow-md group-hover/stat:text-blue-400 transition-colors">
+                                                        {typeof stat.value === 'number' && stat.value > 999 ? (stat.value / 1000).toFixed(1) + 'k' : stat.value}
+                                                    </span>
+                                                </div>
+                                            ))}
                                         </div>
                                     </div>
                                 </div>
 
-                                {/* Main Column: Biography / Feed */}
+                                {/* Main Column: Biography / Tab Content */}
                                 <div className="lg:col-span-9">
-                                    <div className="p-10 md:p-14 rounded-[50px] bg-white/[0.03] border border-white/5 backdrop-blur-3xl shadow-2xl relative overflow-hidden min-h-[600px]">
-                                        <div className="absolute top-0 right-0 p-12">
-                                            <Zap size={64} className="text-white/[0.02] rotate-12" />
+                                    <div className="p-10 md:p-14 rounded-[50px] bg-black/60 border border-white/10 backdrop-blur-3xl shadow-2xl relative overflow-hidden min-h-[600px]">
+                                        <div className="absolute top-0 right-0 p-12 pointer-events-none">
+                                            <Zap size={120} className="text-white/[0.03] rotate-12" />
                                         </div>
 
                                         <div className="relative">
                                             <div className="flex items-center justify-between mb-12">
                                                 <div className="flex items-center gap-4">
-                                                    <div className="w-10 h-1 bg-blue-600 rounded-full" />
-                                                    <h2 className="text-[11px] font-black uppercase tracking-[0.5em] text-white/30 italic">User Biography</h2>
+                                                    <div className="w-12 h-1.5 bg-blue-600 rounded-full" />
+                                                    <h2 className="text-[11px] font-black uppercase tracking-[0.5em] text-white/40 italic">User Biography</h2>
                                                 </div>
                                                 
                                                 {isOwnProfile && !isEditingReadme && (
                                                     <button 
                                                         onClick={() => setIsEditingReadme(true)}
-                                                        className="px-6 py-2.5 rounded-xl bg-blue-600/10 text-blue-400 text-[10px] font-black uppercase tracking-widest hover:bg-blue-600 hover:text-white transition-all border border-blue-600/20"
+                                                        className="px-8 py-3 rounded-2xl bg-blue-600/10 text-blue-400 text-[10px] font-black uppercase tracking-widest hover:bg-blue-600 hover:text-white transition-all border border-blue-600/20 shadow-xl"
                                                     >
                                                         <Edit3 size={14} className="mr-2 inline-block" />
-                                                        Modify
+                                                        Modify Bio
                                                     </button>
                                                 )}
                                             </div>
 
                                             <div className="prose prose-invert max-w-none">
                                                 {isEditingReadme ? (
-                                                        <div className="space-y-4">
-                                                            <div className="space-y-2">
-                                                                <p className="text-[10px] font-black uppercase tracking-widest text-white/20 pl-4">Custom Wallpaper URL (GIF/MP4 supported)</p>
+                                                        <div className="space-y-6">
+                                                            <div className="space-y-3">
+                                                                <p className="text-[10px] font-black uppercase tracking-widest text-white/30 pl-4">Custom Wallpaper URL (GIF/MP4 supported)</p>
                                                                 <input 
                                                                     type="text"
                                                                     value={profile?.profile_banner_url || ''}
                                                                     onChange={(e) => setProfile({ ...profile, profile_banner_url: e.target.value })}
                                                                     placeholder="Paste GIF or Video Link here..."
-                                                                    className="w-full px-6 py-4 rounded-2xl bg-black/40 border border-white/10 text-xs font-bold text-white focus:border-blue-500/50 transition-all outline-none"
+                                                                    className="w-full px-8 py-5 rounded-3xl bg-black/60 border border-white/10 text-xs font-bold text-white focus:border-blue-500/50 transition-all outline-none shadow-inner"
                                                                 />
                                                             </div>
-
-                                                            <div className="w-full h-[500px] rounded-3xl overflow-hidden border border-white/10 bg-black/40 backdrop-blur-md shadow-2xl">
+                                                            <div className="w-full h-[500px] rounded-[40px] overflow-hidden border border-white/10 bg-black/40 backdrop-blur-md shadow-2xl">
                                                                 <Editor
                                                                     height="100%"
                                                                     defaultLanguage={isFullLayout ? "html" : "markdown"}
@@ -688,16 +726,16 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                                                             <div className="flex justify-end gap-3">
                                                                 <button 
                                                                     onClick={() => setIsEditingReadme(false)} 
-                                                                    className="px-8 py-3 rounded-2xl bg-white/5 hover:bg-white/10 text-xs font-black uppercase tracking-widest text-white/40 transition-all"
+                                                                    className="px-10 py-4 rounded-2xl bg-white/5 hover:bg-white/10 text-xs font-black uppercase tracking-widest text-white/40 transition-all"
                                                                 >
                                                                     Discard
                                                                 </button>
                                                                 <button 
                                                                     onClick={saveLayout} 
                                                                     disabled={isSaving} 
-                                                                    className="px-10 py-3 rounded-2xl bg-blue-600 text-white text-xs font-black uppercase tracking-widest shadow-xl shadow-blue-600/40 disabled:opacity-50 transition-all hover:scale-105 active:scale-95"
+                                                                    className="px-12 py-4 rounded-2xl bg-blue-600 text-white text-xs font-black uppercase tracking-widest shadow-xl shadow-blue-600/40 disabled:opacity-50 transition-all hover:scale-105 active:scale-95"
                                                                 >
-                                                                    {isSaving ? "Syncing..." : "Save Biography"}
+                                                                    {isSaving ? "Syncing..." : "Save Profile"}
                                                                 </button>
                                                             </div>
                                                         </div>
