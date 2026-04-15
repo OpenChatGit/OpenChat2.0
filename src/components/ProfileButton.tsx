@@ -9,7 +9,8 @@ import { HubTooltip } from './HubTooltip'
 import { StackBadges } from './StackBadges'
 
 interface ProfileButtonProps {
-  onOpenSettings: () => void
+  onOpenSettings: () => void;
+  onOpenProfile: (userId: string) => void;
 }
 
 function AvatarWithFallback({ src, alt, size }: { src?: string; alt: string; size: string }) {
@@ -43,12 +44,12 @@ function AvatarWithFallback({ src, alt, size }: { src?: string; alt: string; siz
   )
 }
 
-export function ProfileButton({ onOpenSettings }: ProfileButtonProps) {
+export function ProfileButton({ onOpenSettings, onOpenProfile }: ProfileButtonProps) {
   const [isOpen, setIsOpen] = useState(false)
   const [showLoginModal, setShowLoginModal] = useState(false)
   const [showUpgradeModal, setShowUpgradeModal] = useState(false)
   const dropupRef = useRef<HTMLDivElement>(null)
-  const { user, isAuthenticated, isLoading, login, logout } = useAuth()
+  const { user, isAuthenticated, isLoading, logout } = useAuth()
 
   // Close dropup when clicking outside
   useEffect(() => {
@@ -73,6 +74,14 @@ export function ProfileButton({ onOpenSettings }: ProfileButtonProps) {
         setIsOpen(false)
       },
       highlight: !user?.isPro
+    },
+    {
+      icon: User,
+      label: 'View Profile',
+      onClick: () => {
+        if (user?.id) onOpenProfile(user.id)
+        setIsOpen(false)
+      }
     },
     {
       icon: Settings,
@@ -132,13 +141,11 @@ export function ProfileButton({ onOpenSettings }: ProfileButtonProps) {
       <LoginModal
         isOpen={showLoginModal}
         onClose={() => setShowLoginModal(false)}
-        onLogin={login}
       />
       
       <UpgradeModal
         isOpen={showUpgradeModal}
         onClose={() => setShowUpgradeModal(false)}
-        currentPlan={user?.isPro ? 'pro' : 'free'}
       />
       
       <div ref={dropupRef} className="relative">
@@ -153,7 +160,14 @@ export function ProfileButton({ onOpenSettings }: ProfileButtonProps) {
         >
           {/* User Info Section */}
           {isAuthenticated && user && (
-            <div className="px-6 py-5 border-b" style={{ borderColor: 'var(--color-dropdown-border)' }}>
+            <div 
+              onClick={() => {
+                if (user?.id) onOpenProfile(user.id)
+                setIsOpen(false)
+              }}
+              className="px-6 py-5 border-b hover:bg-white/5 cursor-pointer transition-colors group/header" 
+              style={{ borderColor: 'var(--color-dropdown-border)' }}
+            >
               <div className="flex items-center gap-4">
                 <AvatarWithFallback
                   src={user.avatarUrl}
@@ -162,7 +176,7 @@ export function ProfileButton({ onOpenSettings }: ProfileButtonProps) {
                 />
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 min-w-0 mb-1">
-                    <div className="font-black text-sm truncate italic">{user.fullname}</div>
+                    <div className="font-black text-sm truncate italic group-hover/header:text-primary transition-colors">{user.fullname}</div>
                     <VerifiedBadge role={user.role} />
                   </div>
                   <StackBadges stack={user.stack} className="mt-1" />

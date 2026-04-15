@@ -1,14 +1,13 @@
-import { Tool } from "@langchain/core/tools";
 import { searchProviderRegistry } from "../web-search";
 import type { SourceRegistry } from "../web-search/sourceRegistry";
+import type { ChatEngineTool } from "../ai/ChatEngine";
 
-export class SupabaseWebSearchTool extends Tool {
+export class SupabaseWebSearchTool implements ChatEngineTool {
   name = "web_search";
   description = "Search the web for real-time information, news, and facts. Always use this for any questions about current events, people, or data that might have changed since your knowledge cutoff.";
   private sourceRegistry?: SourceRegistry;
 
   constructor(sourceRegistry?: SourceRegistry) {
-    super();
     this.sourceRegistry = sourceRegistry;
   }
 
@@ -16,20 +15,19 @@ export class SupabaseWebSearchTool extends Tool {
     let query = input;
     let timeRange = 'day';
 
-    // Check if input is JSON (some models might send it as JSON object string)
     try {
       if (input.startsWith('{')) {
         const parsed = JSON.parse(input);
         query = parsed.query || input;
         timeRange = parsed.timeRange || parsed.time_range || 'day';
       }
-    } catch (e) {
+    } catch {
       // Not JSON, continue with raw input
     }
 
     try {
       const provider = searchProviderRegistry.getProvider('supabase');
-      const results = await provider.search(query, { 
+      const results = await provider.search(query, {
         maxResults: 5,
         timeRange: timeRange
       });
@@ -38,7 +36,6 @@ export class SupabaseWebSearchTool extends Tool {
         return "No results found for this query.";
       }
 
-      // Register sources in the registry for favicon display
       if (this.sourceRegistry) {
         results.forEach(res => {
           this.sourceRegistry!.registerSource(
@@ -52,9 +49,7 @@ export class SupabaseWebSearchTool extends Tool {
       const systemNow = new Date();
       const systemDateStr = systemNow.toLocaleDateString();
 
-      // Simple, clean formatting that works for models of all sizes
       const formattedResults = results.map((res, i) => {
-        // Clean up any misleading boilerplate
         const cleanedSnippet = res.snippet
           .replace(/^No results found\.\s+/i, '')
           .replace(/^Showing results for.*?\s+/i, '');

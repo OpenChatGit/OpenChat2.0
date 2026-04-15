@@ -12,6 +12,7 @@ export interface AppUser {
   provider: 'supabase'
   role: UserRole
   isVerified: boolean
+  stack?: string[]
 }
 
 interface AuthContextType {
@@ -25,7 +26,7 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
-const OWNER_UID = '68a8b25b-c632-430e-b2ef-57bc0d327710';
+
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<AppUser | null>(null)
@@ -64,12 +65,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       name: session.user.user_metadata?.user_name || nameMetadata || 'User',
       fullname: nameMetadata || 'User',
       email: emailMask(session.user.email), // MASKED FOR PRIVACY
-      provider_id: session.user.email, // Keep for internal logic if needed, but consider masking too
       avatarUrl: session.user.user_metadata?.avatar_url,
-      isPro: session.user.id === OWNER_UID,
+      isPro: false,
       provider: 'supabase',
-      role: (session.user.id === OWNER_UID ? 'owner' : 'user') as any,
-      isVerified: session.user.id === OWNER_UID
+      role: 'user',
+      isVerified: false,
+      stack: []
     };
 
     setUser(initialUser);
@@ -82,7 +83,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       const { data: settings } = await supabase
         .from('user_settings')
-        .select('role, is_verified, display_name, avatar_url')
+        .select('role, is_verified, display_name, avatar_url, stack')
         .eq('user_id', session.user.id)
         .abortSignal(AbortSignal.timeout(3000))
         .single();
@@ -94,7 +95,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           avatarUrl: settings.avatar_url || prev.avatarUrl,
           role: settings.role as any,
           isVerified: settings.is_verified,
-          isPro: settings.role === 'owner' || settings.role === 'admin'
+          isPro: settings.role === 'owner' || settings.role === 'admin',
+          stack: settings.stack || []
         } : null);
       }
 

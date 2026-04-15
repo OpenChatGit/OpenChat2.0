@@ -19,6 +19,7 @@ export interface TokenUsage {
   totalTokens: number;
   tokensPerSecond?: number; // Speed of token generation
   streamDuration?: number; // Duration of streaming in milliseconds
+  reasoningTokens?: number; // Number of tokens used for reasoning
 }
 
 export interface Message {
@@ -55,6 +56,8 @@ export interface Message {
       sourceIds: number[];      // Array of source IDs that are cited in this message
       citationCount: number;    // Total number of citations in this message
     };
+    /** OpenRouter Nemotron: opaque `reasoning_details` for multi-turn (must be sent back unchanged). */
+    reasoningDetails?: unknown;
   };
 }
 

@@ -30,7 +30,6 @@ export function HubSidebar({
   onlineUserIds = []
 }: HubSidebarProps) {
   const [followedUsers, setFollowedUsers] = useState<{ name: string, handle: string, avatar?: string }[]>([])
-  const [socialStats, setSocialStats] = useState({ followers: 0, following: 0 })
   const [isLoading, setIsLoading] = useState(true)
   const [refreshKey, setRefreshKey] = useState(0)
   const [isNavCollapsed, setIsNavCollapsed] = useState(() => {
@@ -62,19 +61,7 @@ export function HubSidebar({
         const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
         const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
 
-        // Fetch Social Stats
-        const [followersRes, followingRes] = await Promise.all([
-            fetch(`${supabaseUrl}/rest/v1/hub_follows?following_id=eq.${currentUserId}&select=count`, {
-                headers: { 'apikey': supabaseAnonKey, 'Authorization': `Bearer ${token}`, 'Prefer': 'count=exact' }
-            }),
-            fetch(`${supabaseUrl}/rest/v1/hub_follows?follower_id=eq.${currentUserId}&select=count`, {
-                headers: { 'apikey': supabaseAnonKey, 'Authorization': `Bearer ${token}`, 'Prefer': 'count=exact' }
-            })
-        ])
-        
-        const followersCount = parseInt(followersRes.headers.get('content-range')?.split('/')[1] || '0')
-        const followingCount = parseInt(followingRes.headers.get('content-range')?.split('/')[1] || '0')
-        setSocialStats({ followers: followersCount, following: followingCount })
+        // Stats fetch removed (unused)
 
         // Fetch Followed Profiles
         const followsRes = await fetch(
@@ -246,10 +233,10 @@ export function HubSidebar({
                     onClick={() => onSubTabChange('friends')}
                     className={cn(
                         "w-full flex items-center gap-3 px-4 py-2.5 rounded-2xl text-sm font-bold transition-all outline-none",
-                        activeSubTab === 'friends' ? "bg-primary text-primary-foreground shadow-lg shadow-primary/20" : "text-muted-foreground hover:bg-white/5 hover:text-foreground"
+                        (activeSubTab as string) === 'friends' ? "bg-primary text-primary-foreground shadow-lg shadow-primary/20" : "text-muted-foreground hover:bg-white/5 hover:text-foreground"
                     )}
                 >
-                    <Users size={16} strokeWidth={activeSubTab === 'friends' ? 3 : 2} />
+                    <Users size={16} strokeWidth={(activeSubTab as string) === 'friends' ? 3 : 2} />
                     Friends
                 </button>
 
@@ -257,10 +244,10 @@ export function HubSidebar({
                     onClick={() => onSubTabChange('messages')}
                     className={cn(
                         "w-full flex items-center gap-3 px-4 py-2.5 rounded-2xl text-sm font-bold transition-all outline-none",
-                        activeSubTab === 'messages' ? "bg-primary text-primary-foreground shadow-lg shadow-primary/20" : "text-muted-foreground hover:bg-white/5 hover:text-foreground"
+                        (activeSubTab as string) === 'messages' ? "bg-primary text-primary-foreground shadow-lg shadow-primary/20" : "text-muted-foreground hover:bg-white/5 hover:text-foreground"
                     )}
                 >
-                    <MessageSquare size={16} strokeWidth={activeSubTab === 'messages' ? 3 : 2} />
+                    <MessageSquare size={16} strokeWidth={(activeSubTab as string) === 'messages' ? 3 : 2} />
                     Messages
                 </button>
 
@@ -349,7 +336,7 @@ export function HubSidebar({
           </HubTooltip>
           
           <div className="">
-              <ProfileButton onOpenSettings={onOpenSettings} />
+              <ProfileButton onOpenSettings={onOpenSettings} onOpenProfile={setActiveProfileUserId || (() => {})} />
           </div>
       </div>
     </div>

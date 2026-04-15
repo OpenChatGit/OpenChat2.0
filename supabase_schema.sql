@@ -7,6 +7,7 @@ DROP FUNCTION IF EXISTS public.deduct_credits(UUID, DOUBLE PRECISION) CASCADE;
 DROP FUNCTION IF EXISTS public.handle_new_user() CASCADE;
 DROP FUNCTION IF EXISTS public.handle_hub_post_like_change() CASCADE;
 DROP FUNCTION IF EXISTS public.increment_fork_count(UUID, UUID) CASCADE;
+DROP TABLE IF EXISTS public.hub_profile_custom CASCADE;
 DROP TABLE IF EXISTS public.messages CASCADE;
 DROP TABLE IF EXISTS public.sessions CASCADE;
 DROP TABLE IF EXISTS public.hub_post_forks CASCADE;
@@ -322,3 +323,27 @@ CREATE POLICY "Users can see their own messages" ON hub_private_messages
 DROP POLICY IF EXISTS "Users can send messages" ON hub_private_messages;
 CREATE POLICY "Users can send messages" ON hub_private_messages
     FOR INSERT WITH CHECK (auth.uid() = sender_id);
+
+-- 14. Custom Profile Canvas
+CREATE TABLE public.hub_profile_custom (
+  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE PRIMARY KEY,
+  content TEXT DEFAULT '',
+  layout_type TEXT DEFAULT 'standard',
+  updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+ALTER TABLE public.hub_profile_custom ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Public can view any profile canvas" ON public.hub_profile_custom;
+DROP POLICY IF EXISTS "Users can update their own profile canvas" ON public.hub_profile_custom;
+
+CREATE POLICY "Public can view any profile canvas" ON public.hub_profile_custom 
+    FOR SELECT TO authenticated USING (true);
+
+CREATE POLICY "Users can update their own profile canvas" ON public.hub_profile_custom 
+    FOR ALL TO authenticated USING (auth.uid() = user_id);
+
+-- Trigger for updated_at
+CREATE TRIGGER update_hub_profile_custom_timestamp 
+    BEFORE UPDATE ON public.hub_profile_custom 
+    FOR EACH ROW EXECUTE PROCEDURE public.handle_updated_at();

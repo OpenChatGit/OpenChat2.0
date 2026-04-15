@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { User, Cloud, Coins, Github, Mail, ShieldCheck, LogOut, Check, Cpu } from 'lucide-react'
 import { useAuth } from '../hooks/useAuth'
 import { fetchUserSettings, updateUserSettings, type CloudUserSettings } from '../services/cloudSync'
+import { getSafeSession } from '../lib/supabase'
 import { cn } from '../lib/utils'
 
 const CDN_BASE = 'https://unpkg.com/@lobehub/icons-static-svg@latest/icons/'

@@ -1,5 +1,3 @@
-// Enhanced useChat hook with Tool Call support
-
 import { useState, useCallback, useRef, useEffect } from 'react'
 import type { ChatSession, Message, ProviderConfig, ImageAttachment } from '../types'
 import { generateId } from '../lib/utils'
@@ -8,20 +6,23 @@ import type { WebSearchSettings } from '../components/WebSearchSettings'
 import { loadWebSearchSettings, saveWebSearchSettings } from '../lib/web-search/settingsStorage'
 import { Tokenizer } from '../lib/tokenizer'
 import { pushSessionToEdge as cloudPush, loadSessionFromEdge as cloudLoad } from '../services/cloudSync'
-import { ChatEngine } from '../lib/langchain/ChatEngine'
+import { ChatEngine } from '../lib/ai/ChatEngine'
 import { getSafeSession } from '../lib/supabase'
+import { ReasoningAccumulator, ReasoningDetector, ReasoningFormatter } from '../lib/ai/reasoningAdapter'
 
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || ''
 
-// Default system prompt constant
-const getSystemPrompt = () => `You are OpenChat 2.0, a highly capable and friendly AI assistant.
-Your goal is to provides accurate, helpful, and concise responses.
-
-### GUIDELINES:
-1. CITATIONS: When using external information or searching the web, always cite your sources using [N] notation.
-2. TONE: Be professional, helpful, and direct.
-3. STRUCTURE: Use markdown to structure long responses for better readability.
-4. REASONING: If you need to think through a complex problem, do so clearly.`
+// Default system prompt constant - can be customized by user
+const getSystemPrompt = () => {
+  // Check if user has custom system prompt in settings
+  const customPrompt = localStorage.getItem('custom-system-prompt');
+  if (customPrompt) {
+    return customPrompt;
+  }
+  
+  // Minimalist prompt to avoid triggering "thinking" about instructions
+  return `You are a helpful AI assistant. Always provide clear, accurate, and concise answers.`;
+}
 
 
 
@@ -76,6 +77,7 @@ export function useChatWithTools() {
   const autoSearchManager = useRef(new AutoSearchAdapter())
   const settingsInitialized = useRef(false)
   const abortControllerRef = useRef<AbortController | null>(null)
+  const isGeneratingRef = useRef(false)
 
   const cancelGeneration = useCallback(() => {
     if (abortControllerRef.current) {
@@ -83,6 +85,7 @@ export function useChatWithTools() {
       abortControllerRef.current = null
     }
     setIsGenerating(false)
+    isGeneratingRef.current = false
   }, [])
 
   const saveSessionsTimer = useRef<NodeJS.Timeout | null>(null)
@@ -580,9 +583,20 @@ Format: {title}Your Summary{/title}`
     images?: ImageAttachment[],
     existingAssistantId?: string
   ) => {
-    let isRecursing = false;
     const session = targetSession || currentSession
     if (!session) return
+
+    if (isGeneratingRef.current) {
+      console.warn('[useChatWithTools] sendMessage called while already generating (checked via ref). Ignoring.');
+      return;
+    }
+
+    console.log('[useChatWithTools] sendMessage called', {
+      content: content.substring(0, 50),
+      sessionId: session.id,
+      existingAssistantId,
+      messageCount: session.messages.length
+    });
 
     // Check if user message already exists
     const hasUserMessage = session.messages.some(m => m.role === 'user' && m.content === content)
@@ -625,6 +639,7 @@ Format: {title}Your Summary{/title}`
     }
 
     setIsGenerating(true)
+    isGeneratingRef.current = true
 
     if (!existingAssistantId) {
       addMessage(session.id, assistantMessage)
@@ -648,12 +663,14 @@ Format: {title}Your Summary{/title}`
         tool_call_id?: string;
         tool_calls?: any[];
         images?: any[];
+        metadata?: Message['metadata'];
       }> = rawMessages.map(m => ({
           role: m.role as any,
           content: m.content || '',
           tool_call_id: m.toolCallId,
           tool_calls: m.toolCalls,
-          images: m.images
+          images: m.images,
+          metadata: m.metadata,
         }))
 
       // Ensure system message is first
@@ -670,7 +687,18 @@ Format: {title}Your Summary{/title}`
       if (!existingAssistantId) {
         streamingContentRef.current = ''
       }
-      let isThinkingMode = false
+      
+      // Collect all content first, then simulate streaming (except for local models)
+      let fullReasoningContent = '';
+      let fullAnswerContent = '';
+      let isCollectingReasoning = false;
+      let isTypewriterRunning = false;
+      
+      const isLocalModel = providerConfig.type === 'ollama' || providerConfig.type === 'llama-cpp';
+      
+      // Initialize reasoning accumulator for this stream
+      const reasoningAccumulator = new ReasoningAccumulator();
+      
       const streamStartTime = Date.now()
       
       let lastUpdate = 0
@@ -684,7 +712,11 @@ Format: {title}Your Summary{/title}`
 
       const { SupabaseWebSearchTool } = await import('../lib/tools/SupabaseWebSearch')
       const registry = autoSearchManager.current.getOrchestrator().getSourceRegistry();
-      const tools = [new SupabaseWebSearchTool(registry)]
+      
+      // Only add tools if auto search is enabled
+      const tools: any[] = autoSearchEnabled ? [new SupabaseWebSearchTool(registry)] : []
+      
+      console.log('[useChatWithTools] Tools enabled:', autoSearchEnabled, 'Tool count:', tools.length);
 
       abortControllerRef.current = new AbortController()
 
@@ -696,7 +728,7 @@ Format: {title}Your Summary{/title}`
         model: model,
         apiKey: providerConfig.apiKey,
         baseUrl: providerConfig.baseUrl,
-        temperature: 0.4,
+        temperature: 0.7, // Increased for better reasoning
         headers: {
           'X-User-Token': userToken || '',
           'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
@@ -707,6 +739,7 @@ Format: {title}Your Summary{/title}`
       console.log('[useChatWithTools] Request tools:', JSON.stringify(tools, null, 2));
 
       let streamingToolCalls: any[] = [];
+      let reportedReasoningTokens = 0;
       try {
         const stream = await chatEngine.chat(messages, tools, abortControllerRef.current?.signal);
         
@@ -787,40 +820,128 @@ Format: {title}Your Summary{/title}`
           }
 
           const chunk = wrappedChunk.data;
-          // Debug: log raw chunks if needed, but throttle it
-          // console.log('[useChatWithTools] Chunk:', chunk);
+          
+          // Capture reasoning tokens if provided by the model (e.g. OpenRouter, DeepSeek)
+          const usage = chunk.usage_metadata || (chunk as any).usage || chunk.additional_kwargs?.usage;
+          if (usage) {
+            reportedReasoningTokens = 
+              usage?.output_token_details?.reasoning ||
+              usage?.output_tokens_details?.reasoning_tokens || 
+              usage?.reasoning_tokens || 
+              usage?.reasoningTokens || 
+              reportedReasoningTokens;
+          }
 
           const addKwargs = chunk.additional_kwargs as any;
-          const reasoningContent = addKwargs?.reasoning_content || addKwargs?.thinking || addKwargs?.reasoning || (chunk as any).reasoning_content || (chunk as any).thinking;
-          
+          const reasoningDetailsRaw = addKwargs?.reasoning_details_raw;
+          if (reasoningDetailsRaw != null) {
+            console.log('[useChatWithTools] reasoning_details_raw received:', JSON.stringify(reasoningDetailsRaw).substring(0, 200));
+            const prevMeta = session.messages.find(m => m.id === assistantMessage.id)?.metadata ?? {};
+            updateMessage(session.id, assistantMessage.id, streamingContentRef.current, {
+              metadata: { ...prevMeta, reasoningDetails: reasoningDetailsRaw },
+            });
+          }
+
+          // Universal reasoning detection using ReasoningDetector
+          const reasoningChunk = ReasoningDetector.extractFromChunk(chunk);
           const content = chunk.content as string;
+
+          // Handle Nemotron post-stream reasoning merge
+          // If we receive reasoning_details_raw AND we have content but no reasoning tags yet
+          if (reasoningChunk && addKwargs?.reasoning_details_raw && 
+              streamingContentRef.current.length > 0 && 
+              !ReasoningFormatter.hasReasoningTags(streamingContentRef.current)) {
+            console.log('[useChatWithTools] Nemotron post-stream merge: prepending reasoning to existing content');
+            streamingContentRef.current = `<think>${reasoningChunk.content}</think>\n\n` + streamingContentRef.current;
+            throttledUpdate(true);
+            continue;
+          }
           
-          if (reasoningContent) {
-            if (!isThinkingMode) {
-              isThinkingMode = true;
-              streamingContentRef.current += '<think>';
-            }
-            streamingContentRef.current += reasoningContent;
+          // Handle case where reasoning comes AFTER content has already streamed (Nemotron)
+          if (reasoningChunk && addKwargs?.reasoning_details_raw &&
+              streamingContentRef.current.length > 0 &&
+              !reasoningAccumulator.isReasoning() &&
+              !ReasoningFormatter.hasReasoningTags(streamingContentRef.current)) {
+            console.log('[useChatWithTools] Late reasoning detected, prepending to content');
+            streamingContentRef.current = `<think>${reasoningChunk.content}</think>\n\n` + streamingContentRef.current;
+            throttledUpdate(true);
+            continue;
           }
 
+          // 5. Detect plain-text reasoning markers at the very start of the stream
+          // Use a small buffer to check the first few chunks
+          const accumulatedContentLen = fullAnswerContent.length + (content?.length || 0);
+          const currentStart = (fullAnswerContent + (content || '')).trim();
+          
+          if (!reasoningChunk && !isCollectingReasoning && accumulatedContentLen < 100 && accumulatedContentLen > 0) {
+            const markers = ['Thinking Process:', 'Thought Process:', 'Analyze the Request:', '### Thinking'];
+            const foundMarker = markers.find(m => currentStart.startsWith(m));
+            
+            if (foundMarker) {
+              console.log('[useChatWithTools] Plain-text reasoning detected by marker, enabling collection mode');
+              isCollectingReasoning = true;
+              // Prepend a virtual <think> tag if we're on a local model
+              if (isLocalModel && !streamingContentRef.current.includes('<think>')) {
+                streamingContentRef.current = '<think>' + streamingContentRef.current;
+              }
+            }
+          }
+          
+          // Collect reasoning content
+          // Collect reasoning content
+          if (reasoningChunk) {
+            isCollectingReasoning = true;
+            const { shouldOpenTag, content: reasoningText } = reasoningAccumulator.processChunk(reasoningChunk);
+            fullReasoningContent += reasoningText;
+            
+            // For local models, update UI immediately with tags
+            if (isLocalModel) {
+              if (shouldOpenTag) {
+                streamingContentRef.current += '<think>';
+              }
+              streamingContentRef.current += reasoningText;
+              throttledUpdate();
+            }
+          }
+
+          // Collect regular content
           if (content && content.length > 0) {
-            // Check if we are switching from thinking to content
-            if (isThinkingMode) {
-              isThinkingMode = false;
-              streamingContentRef.current += '</think>\n\n';
+            if (isCollectingReasoning) {
+              isCollectingReasoning = false;
+              // Close reasoning tag for local models
+              if (isLocalModel) {
+                const { shouldCloseTag } = reasoningAccumulator.endReasoning();
+                if (shouldCloseTag) {
+                  if (!streamingContentRef.current.includes('</think>')) {
+                    streamingContentRef.current += '</think>\n\n';
+                  }
+                }
+              }
             }
-            streamingContentRef.current += content;
+            fullAnswerContent += content;
+            
+            // For local models, update UI immediately
+            if (isLocalModel) {
+              streamingContentRef.current += content;
+              throttledUpdate();
+            }
           }
 
-          // 1. Native Tool Call Check (via LangChain structured output)
+          // 1. Native tool-call metadata from the model stream
           if (chunk.additional_kwargs?.tool_calls) {
             console.log('[useChatWithTools] Tool calls detected in additional_kwargs:', chunk.additional_kwargs.tool_calls);
             streamingToolCalls = chunk.additional_kwargs.tool_calls;
             
-            if (isThinkingMode) {
-              isThinkingMode = false;
-              streamingContentRef.current += '</think>\n\n';
+            if (reasoningAccumulator.isReasoning()) {
+              const { shouldCloseTag } = reasoningAccumulator.endReasoning();
+              if (shouldCloseTag) {
+                // Just mark that reasoning ended, don't add to content yet
+                isCollectingReasoning = false;
+              }
             }
+            
+            // Don't update content during collection
+            // stopTypewriter();
 
             // Update status to searching
             updateMessage(session.id, assistantMessage.id, streamingContentRef.current, {
@@ -860,9 +981,11 @@ Format: {title}Your Summary{/title}`
                       // Remove the tool call from content to prevent rendering JSON as text
                       streamingContentRef.current = streamingContentRef.current.replace(toolCallMatch[0], '');
                       
-                      if (isThinkingMode) {
-                        isThinkingMode = false;
-                        streamingContentRef.current += '</think>\n\n';
+                      if (reasoningAccumulator.isReasoning()) {
+                        const { shouldCloseTag } = reasoningAccumulator.endReasoning();
+                        if (shouldCloseTag) {
+                          streamingContentRef.current += '</think>\n\n';
+                        }
                       }
 
                       // Update status to searching
@@ -880,11 +1003,86 @@ Format: {title}Your Summary{/title}`
             }
           }
           
-          if (reasoningContent || (content && content.length > 0)) {
+          if (reasoningChunk || (content && content.length > 0)) {
             throttledUpdate();
           }
         }
         console.log('[useChatWithTools] Stream loop finished. Total tool calls found:', streamingToolCalls.length);
+        
+        // Skip typewriter simulation for local models
+        if (isLocalModel) {
+          console.log('[useChatWithTools] Local model detected, skipping typewriter simulation');
+          throttledUpdate(true);
+          return;
+        }
+
+        // Prevent duplicate typewriter runs
+        if (isTypewriterRunning) {
+          console.log('[useChatWithTools] Typewriter already running, skipping');
+          return;
+        }
+        isTypewriterRunning = true;
+        
+        // Now simulate typewriter effect with collected content (BATCHED for performance)
+        console.log('[useChatWithTools] Starting typewriter simulation');
+        console.log('[useChatWithTools] Reasoning length:', fullReasoningContent.length);
+        console.log('[useChatWithTools] Answer length:', fullAnswerContent.length);
+        
+        const TYPEWRITER_SPEED = 10; // ms per character (fast)
+        const BATCH_UPDATE_INTERVAL = 200; // Update UI every 200ms instead of every character (better performance)
+        
+        // Build final content with tags
+        let finalContent = '';
+        if (fullReasoningContent.length > 0) {
+          finalContent = `<think>${fullReasoningContent}</think>\n\n${fullAnswerContent}`;
+        } else {
+          finalContent = fullAnswerContent;
+        }
+        
+        // Simulate typewriter effect - but batch updates for performance
+        let displayContent = '';
+        let i = 0;
+        let lastUpdateTime = Date.now();
+        
+        while (i < finalContent.length) {
+          // Check if we're at the start of a tag
+          if (finalContent[i] === '<') {
+            // Find the end of the tag
+            const tagEnd = finalContent.indexOf('>', i);
+            if (tagEnd !== -1) {
+              // Add the entire tag at once (including the >)
+              displayContent += finalContent.substring(i, tagEnd + 1);
+              i = tagEnd + 1;
+              // Force update after tag
+              streamingContentRef.current = displayContent;
+              updateMessage(session.id, assistantMessage.id, streamingContentRef.current);
+              lastUpdateTime = Date.now();
+              await new Promise(resolve => setTimeout(resolve, TYPEWRITER_SPEED));
+              continue;
+            }
+          }
+          
+          // Regular character - add one at a time
+          displayContent += finalContent[i];
+          i++;
+          
+          // Only update UI every BATCH_UPDATE_INTERVAL ms (not every character!)
+          const now = Date.now();
+          if (now - lastUpdateTime >= BATCH_UPDATE_INTERVAL || i >= finalContent.length) {
+            streamingContentRef.current = displayContent;
+            updateMessage(session.id, assistantMessage.id, streamingContentRef.current);
+            lastUpdateTime = now;
+          }
+          
+          await new Promise(resolve => setTimeout(resolve, TYPEWRITER_SPEED));
+        }
+        
+        // Final update to ensure everything is shown
+        streamingContentRef.current = displayContent;
+        updateMessage(session.id, assistantMessage.id, streamingContentRef.current);
+        
+        console.log('[useChatWithTools] Typewriter simulation complete');
+        
         if (streamingToolCalls.length === 0 && streamingContentRef.current.length > 0) {
           console.log('[useChatWithTools] Final accumulated content (no tool calls detected):', streamingContentRef.current);
         }
@@ -897,18 +1095,24 @@ Format: {title}Your Summary{/title}`
       }
 
       // Ensure reasoning block is closed if stream ends during reasoning
-      if (isThinkingMode) {
-        isThinkingMode = false;
-        streamingContentRef.current += '</think>\n\n';
-        throttledUpdate(true);
-      }
+      // (This is now handled in the typewriter simulation above)
 
       if (streamingToolCalls.length > 0) {
         // If it was a tool call, we already handled the message update above.
-        // We don't want to overwrite it with technical JSON content.
-        console.log('[useChatWithTools] Tool call detected, skipping final content update')
+        // But still apply deduplication to clean up any duplicate reasoning
+        const finalContent = ReasoningFormatter.deduplicateReasoning(streamingContentRef.current)
+        if (finalContent !== streamingContentRef.current) {
+          streamingContentRef.current = finalContent
+          updateMessage(session.id, assistantMessage.id, finalContent)
+        }
+        console.log('[useChatWithTools] Tool call detected, applied deduplication')
       } else {
-        const finalContent = streamingContentRef.current
+        // Apply deduplication for models that repeat reasoning in answer
+        const finalContent = ReasoningFormatter.deduplicateReasoning(streamingContentRef.current)
+        if (finalContent !== streamingContentRef.current) {
+          console.log('[useChatWithTools] Deduplication applied, content changed')
+        }
+        streamingContentRef.current = finalContent
         updateMessage(session.id, assistantMessage.id, finalContent)
       }
 
@@ -941,6 +1145,7 @@ Format: {title}Your Summary{/title}`
         // Add streaming metrics to token usage
         const tokenUsageWithMetrics = {
           ...tokenUsage,
+          reasoningTokens: reportedReasoningTokens > 0 ? reportedReasoningTokens : undefined,
           tokensPerSecond: Math.round(tokensPerSecond * 100) / 100, // Round to 2 decimal places
           streamDuration
         }
@@ -1035,12 +1240,11 @@ Format: {title}Your Summary{/title}`
         )
       }
       } finally {
-        if (!isRecursing) {
-          setIsGenerating(false)
-          abortControllerRef.current = null
-        }
+        setIsGenerating(false)
+        isGeneratingRef.current = false
+        abortControllerRef.current = null
       }
-    }, [addMessage, updateMessage, currentSession, setSessions, autoSearchEnabled, webSearchSettings])
+    }, [addMessage, updateMessage, currentSession, setSessions, autoSearchEnabled, webSearchSettings, isGenerating, setIsGenerating])
 
   const deleteSession = useCallback((sessionId: string) => {
     setSessions(prev => prev.filter(s => s.id !== sessionId))

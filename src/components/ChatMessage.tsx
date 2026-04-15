@@ -72,7 +72,7 @@ export const ChatMessage = memo(({ message, previousMessage, sourceRegistry, reg
     }
     
     // Handle complete reasoning blocks
-    const thinkRegex = /<think>([\s\S]*?)<\/think>/g
+    const thinkRegex = /<think>([\s\S]*?)<\/redacted_thinking>/g
     let match
     let lastIndex = 0
     
@@ -402,7 +402,7 @@ export const ChatMessage = memo(({ message, previousMessage, sourceRegistry, reg
               onClick={() => {
                 // Remove <think>...</think> blocks from content before copying
                 const contentWithoutReasoning = message.content
-                  .replace(/<think>[\s\S]*?<\/think>/gi, '')
+                  .replace(/<think>[\s\S]*?<\/redacted_thinking>/gi, '')
                   .replace(/<thinking>[\s\S]*?<\/thinking>/gi, '')
                   .replace(/<reasoning>[\s\S]*?<\/reasoning>/gi, '')
                   .replace(/```reasoning[\s\S]*?```/gi, '')

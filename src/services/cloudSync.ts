@@ -96,9 +96,8 @@ export async function pushSessionToEdge(chatSession: ChatSession): Promise<strin
   const res = await fetch(SYNC_URL, {
     method: "POST",
     headers: {
-      "apikey": SUPABASE_ANON_KEY,                   // Gateway Check
-      "Authorization": `Bearer ${SUPABASE_ANON_KEY}`, // Gateway Passierschein (muss JWT sein)
-      "X-User-Token": userToken,                     // Deine User-Identität
+      "apikey": SUPABASE_ANON_KEY,           // Supabase API Key for gateway
+      "Authorization": `Bearer ${userToken}`, // User JWT for authentication
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
@@ -139,9 +138,8 @@ export async function loadSessionFromEdge(sessionId: string): Promise<Message[]>
   const res = await fetch(LOAD_URL, {
     method: "POST",
     headers: {
-      "apikey": SUPABASE_ANON_KEY,                   // Gateway Check
-      "Authorization": `Bearer ${SUPABASE_ANON_KEY}`, // Gateway Passierschein (muss JWT sein)
-      "X-User-Token": userToken,                     // Deine User-Identität
+      "apikey": SUPABASE_ANON_KEY,           // Supabase API Key for gateway
+      "Authorization": `Bearer ${userToken}`, // User JWT for authentication
       "Content-Type": "application/json",
     },
     body: JSON.stringify({

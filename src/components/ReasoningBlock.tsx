@@ -24,6 +24,23 @@ export function ReasoningBlock({
   const [isExpanded, setIsExpanded] = useState(!isComplete)
   const [copied, setCopied] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
+  const [elapsedSeconds, setElapsedSeconds] = useState(0)
+  const startTimeRef = useRef<number>(Date.now())
+
+  // Timer logic for live feedback
+  useEffect(() => {
+    if (isComplete) {
+      // Final calculation when done
+      setElapsedSeconds(Math.round((Date.now() - startTimeRef.current) / 1000))
+      return
+    }
+
+    const interval = setInterval(() => {
+      setElapsedSeconds(Math.round((Date.now() - startTimeRef.current) / 1000))
+    }, 1000)
+
+    return () => clearInterval(interval)
+  }, [isComplete])
 
   // Auto-close when reasoning completes, auto-open when it starts
   useEffect(() => {
@@ -51,18 +68,22 @@ export function ReasoningBlock({
         >
           <div className="flex items-center gap-2">
             {!isComplete && (
-               <svg className="w-3.5 h-3.5 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+               <svg className="w-3.5 h-3.5 animate-spin text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                </svg>
             )}
             {isComplete && <FontAwesomeIcon icon={faCheck} className="w-3 h-3 text-emerald-500" />}
             
-            <span>
+            <span className="font-medium">
               {(() => {
                 if (!isComplete) {
-                  return status === 'searching' ? 'Searching web...' : 'Working...';
+                  return status === 'searching' 
+                    ? `Searching web... (${elapsedSeconds}s)` 
+                    : `Thinking... (${elapsedSeconds}s)`;
                 }
-                return sources.length > 0 ? 'Finished Reasoning with Tools' : 'Finished Reasoning';
+                return sources.length > 0 
+                  ? `Finished Reasoning with Tools (${elapsedSeconds}s)` 
+                  : `Thought for ${elapsedSeconds}s`;
               })()}
             </span>
             

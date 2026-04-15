@@ -1,16 +1,25 @@
+/**
+ * Memory Sync Edge Function
+ * Handles session and message synchronization with proper auth and profile sync
+ * 
+ * Endpoints:
+ * - POST /sync - Sync session and messages to cloud
+ * - POST /load - Load session messages from cloud
+ */
+
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 type ChatMessage = {
-  id: string; // stable UUID from client (m.id)
+  id: string;
   role: string;
   content: string;
-  images?: any; // JSONB (expects array)
-  tokens?: any; // JSONB (expects object)
-  created_at?: string; // ISO timestamp from client (preferred)
+  images?: any[];
+  tokens?: any;
+  created_at?: string;
 };
 
-type RequestBody = {
-  session_id: string; // from client
+type SyncRequestBody = {
+  session_id: string;
   session_title: string;
   messages: ChatMessage[];
   provider?: string | null;
@@ -18,9 +27,14 @@ type RequestBody = {
   updated_at?: string;
 };
 
+type LoadRequestBody = {
+  session_id: string;
+  limit_messages_per_session?: number;
+};
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-user-token, content-type, apikey",
+  "Access-Control-Allow-Headers": "authorization, content-type, apikey",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
@@ -31,24 +45,87 @@ function jsonResponse(payload: unknown, status = 200) {
   });
 }
 
+/**
+ * Extract user token from Authorization header
+ */
+function extractUserToken(req: Request): string | null {
+  const authHeader = req.headers.get("authorization");
+  if (!authHeader) return null;
+  
+  // Support both "Bearer <token>" and raw token
+  if (authHeader.startsWith("Bearer ")) {
+    return authHeader.substring(7);
+  }
+  return authHeader;
+}
+
+/**
+ * Auto-sync user profile from auth metadata to user_settings
+ */
+async function syncUserProfile(supabase: any, user: any, currentSettings: any) {
+  const metaName = user.user_metadata?.full_name || 
+                   user.user_metadata?.name || 
+                   user.user_metadata?.user_name || 
+                   user.email?.split('@')[0];
+  const metaAvatar = user.user_metadata?.avatar_url || user.user_metadata?.picture;
+  
+  const nameIsEmail = currentSettings?.display_name?.includes('@') || 
+                      currentSettings?.display_name === user.email;
+  const shouldUpdateName = !currentSettings?.display_name || nameIsEmail;
+  const shouldUpdateAvatar = !currentSettings?.avatar_url && !!metaAvatar;
+
+  if (shouldUpdateName || shouldUpdateAvatar) {
+    console.log(`[MemorySync] Upgrading profile for ${user.id}...`);
+    
+    const updates: any = {
+      updated_at: new Date().toISOString()
+    };
+    
+    if (shouldUpdateName && metaName) {
+      updates.display_name = metaName;
+    }
+    if (shouldUpdateAvatar && metaAvatar) {
+      updates.avatar_url = metaAvatar;
+    }
+    
+    const { error } = await supabase
+      .from("user_settings")
+      .update(updates)
+      .eq("user_id", user.id);
+
+    if (error) {
+      console.error("[MemorySync] Profile update failed:", error.message);
+    } else {
+      console.log("[MemorySync] Profile successfully upgraded.");
+    }
+  }
+}
+
 // @ts-ignore: Deno is defined in Edge Functions context
 Deno.serve(async (req: Request) => {
-  if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
+  if (req.method === "OPTIONS") {
+    return new Response("ok", { headers: corsHeaders });
+  }
+  
   if (req.method !== "POST") {
     return jsonResponse({ error: "Method not allowed" }, 405);
   }
 
   try {
-    const userToken = req.headers.get("x-user-token");
-    if (!userToken) return jsonResponse({ error: "Missing X-User-Token" }, 401);
+    // Extract user token from Authorization header
+    const userToken = extractUserToken(req);
+    if (!userToken) {
+      return jsonResponse({ error: "Missing Authorization header" }, 401);
+    }
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
     const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY");
 
     if (!supabaseUrl || !supabaseAnonKey) {
-      return jsonResponse({ error: "Missing SUPABASE_URL/ANON_KEY env vars" }, 500);
+      return jsonResponse({ error: "Server configuration error" }, 500);
     }
 
+    // Create Supabase client with user token
     const supabase = createClient(supabaseUrl, supabaseAnonKey, {
       global: {
         headers: {
@@ -57,120 +134,151 @@ Deno.serve(async (req: Request) => {
       },
     });
 
+    // Verify user authentication
     const { data: { user }, error: userErr } = await supabase.auth.getUser(userToken);
     if (userErr || !user) {
-      return jsonResponse({ error: "Invalid user token" }, 401);
+      console.error("[MemorySync] Auth error:", userErr?.message);
+      return jsonResponse({ error: "Invalid or expired token" }, 401);
     }
 
-    const body = (await req.json()) as RequestBody;
-    const {
-      session_id,
-      session_title,
-      messages,
-      provider = null,
-      model = null,
-      updated_at,
-    } = body;
+    const url = new URL(req.url);
+    const path = url.pathname;
 
-    if (!session_id || !session_title || !Array.isArray(messages)) {
-      return jsonResponse({ error: "Invalid request body" }, 400);
+    // Route: Load session messages
+    if (path.includes('/load')) {
+      const body = (await req.json()) as LoadRequestBody;
+      const { session_id, limit_messages_per_session = 200 } = body;
+
+      if (!session_id) {
+        return jsonResponse({ error: "session_id is required" }, 400);
+      }
+
+      // Fetch session to verify ownership
+      const { data: session, error: sessionErr } = await supabase
+        .from("sessions")
+        .select("id, user_id")
+        .eq("id", session_id)
+        .eq("user_id", user.id)
+        .single();
+
+      if (sessionErr || !session) {
+        return jsonResponse({ error: "Session not found or access denied" }, 404);
+      }
+
+      // Fetch messages
+      const { data: messages, error: messagesErr } = await supabase
+        .from("messages")
+        .select("*")
+        .eq("session_id", session_id)
+        .order("created_at", { ascending: true })
+        .limit(limit_messages_per_session);
+
+      if (messagesErr) {
+        return jsonResponse({ error: "Failed to load messages", details: messagesErr.message }, 400);
+      }
+
+      return jsonResponse({
+        ok: true,
+        session_id,
+        messages: messages || [],
+        count: messages?.length || 0
+      });
     }
 
-    const userId = user.id;
+    // Route: Sync session and messages
+    if (path.includes('/sync')) {
+      const body = (await req.json()) as SyncRequestBody;
+      const {
+        session_id,
+        session_title,
+        messages,
+        provider = null,
+        model = null,
+        updated_at,
+      } = body;
 
-    // 1) Fetch user role and profile info
-    const { data: userSettings, error: settingsErr } = await supabase
-      .from("user_settings")
-      .select("role, is_verified, display_name, avatar_url")
-      .eq("user_id", userId)
-      .single();
+      if (!session_id || !session_title || !Array.isArray(messages)) {
+        return jsonResponse({ error: "Invalid request: session_id, session_title, and messages are required" }, 400);
+      }
 
-    if (settingsErr && settingsErr.code !== 'PGRST116') {
-        console.error("[MemorySync] Error fetching settings:", settingsErr.message);
+      // Fetch user settings and sync profile
+      const { data: userSettings, error: settingsErr } = await supabase
+        .from("user_settings")
+        .select("role, is_verified, display_name, avatar_url")
+        .eq("user_id", user.id)
+        .single();
+
+      if (settingsErr && settingsErr.code !== 'PGRST116') {
+        console.error("[MemorySync] Settings fetch error:", settingsErr.message);
+      }
+
+      // Auto-sync profile metadata
+      await syncUserProfile(supabase, user, userSettings);
+
+      const userRole = userSettings?.role || 'user';
+      const isVerified = userSettings?.is_verified || false;
+
+      console.log(`[MemorySync] Syncing session ${session_id} for user ${user.id} (Role: ${userRole})`);
+
+      // Upsert session
+      const sessionPayload = {
+        id: session_id,
+        user_id: user.id,
+        title: session_title,
+        provider: provider || 'unknown',
+        model: model || 'unknown',
+        updated_at: updated_at || new Date().toISOString(),
+      };
+
+      const { error: sessionErr } = await supabase
+        .from("sessions")
+        .upsert(sessionPayload, { onConflict: "id" });
+
+      if (sessionErr) {
+        return jsonResponse({ 
+          error: "Session sync failed", 
+          details: sessionErr.message 
+        }, 400);
+      }
+
+      // Upsert messages
+      const messagePayloads = messages.map((m) => ({
+        id: m.id,
+        session_id: session_id,
+        user_id: user.id,
+        role: m.role,
+        content: m.content,
+        images: Array.isArray(m.images) ? m.images : [],
+        tokens: m.tokens || {},
+        created_at: m.created_at || new Date().toISOString(),
+      }));
+
+      const { error: messagesErr } = await supabase
+        .from("messages")
+        .upsert(messagePayloads, { onConflict: "id" });
+
+      if (messagesErr) {
+        return jsonResponse({
+          error: "Messages sync failed",
+          details: messagesErr.message
+        }, 400);
+      }
+
+      return jsonResponse({
+        ok: true,
+        session_id,
+        user_id: user.id,
+        role: userRole,
+        is_verified: isVerified,
+        messages_synced: messagePayloads.length,
+      });
     }
 
-    const userRole = userSettings?.role || 'user';
-    const isVerified = userSettings?.is_verified || false;
-    
-    // 1.1) AUTO-SYNC Profile Metadata (Smart Profile Sync)
-    const metaName = user.user_metadata?.full_name || user.user_metadata?.name || user.user_metadata?.user_name || user.email?.split('@')[0];
-    const metaAvatar = user.user_metadata?.avatar_url || user.user_metadata?.picture;
-    
-    console.log(`[MemorySync] Metadata found - Name: ${metaName}, Avatar: ${!!metaAvatar}`);
-    console.log(`[MemorySync] Current Settings - Name: ${userSettings?.display_name}, Avatar: ${!!userSettings?.avatar_url}`);
+    return jsonResponse({ error: "Invalid endpoint" }, 404);
 
-    const nameIsEmail = userSettings?.display_name?.includes('@') || userSettings?.display_name === user.email;
-    const shouldUpdateName = !userSettings?.display_name || nameIsEmail;
-    const shouldUpdateAvatar = !userSettings?.avatar_url && !!metaAvatar;
-
-    if (shouldUpdateName || shouldUpdateAvatar) {
-        console.log(`[MemorySync] Upgrading profile for ${userId}...`);
-        const { error: updateErr } = await supabase
-          .from("user_settings")
-          .update({
-            display_name: shouldUpdateName ? metaName : userSettings.display_name,
-            avatar_url: shouldUpdateAvatar ? metaAvatar : userSettings.avatar_url,
-            updated_at: new Date().toISOString()
-          })
-          .eq("user_id", userId);
-
-        if (updateErr) console.error("[MemorySync] Update failed:", updateErr.message);
-        else console.log("[MemorySync] Profile successfully upgraded.");
-    }
-
-    console.log(`[MemorySync] Syncing for user: ${userId} (Role: ${userRole}, Verified: ${isVerified})`);
-    const sessionUpsertPayload = {
-      id: session_id,
-      user_id: userId,
-      title: session_title,
-      provider: provider || 'unknown',
-      model: model || 'unknown',
-      updated_at: updated_at || new Date().toISOString(),
-    };
-
-    const { error: sessionErr } = await supabase
-      .from("sessions")
-      .upsert(sessionUpsertPayload, { onConflict: "id" });
-
-    if (sessionErr) {
-      return jsonResponse({ error: "Session upsert failed", details: sessionErr.message }, 400);
-    }
-
-    // 2) Upsert messages (by primary key id)
-    const messageUpsertPayload = messages.map((m) => ({
-      id: m.id,
-      session_id: session_id,
-      user_id: userId,
-      role: m.role,
-      content: m.content,
-      images: Array.isArray(m.images) ? m.images : [],
-      tokens: m.tokens || {},
-      created_at: m.created_at || new Date().toISOString(),
-    }));
-
-    const { error: messagesErr } = await supabase
-      .from("messages")
-      .upsert(messageUpsertPayload, { onConflict: "id" });
-
-    if (messagesErr) {
-      return jsonResponse(
-        { error: "Messages upsert failed", details: messagesErr.message },
-        400
-      );
-    }
-
-    return jsonResponse({
-      ok: true,
-      session_id,
-      user_id: userId,
-      role: userRole,
-      is_verified: isVerified,
-      display_name: userSettings?.display_name || metaName,
-      avatar_url: userSettings?.avatar_url || metaAvatar,
-      messages_upserted: messageUpsertPayload.length,
-    });
   } catch (e: any) {
     const msg = e instanceof Error ? e.message : String(e);
-    return jsonResponse({ error: "Unhandled error", details: msg }, 500);
+    console.error("[MemorySync] Unhandled error:", msg);
+    return jsonResponse({ error: "Internal server error", details: msg }, 500);
   }
 });

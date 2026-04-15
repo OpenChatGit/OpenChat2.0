@@ -50,7 +50,7 @@ export class SupabasePremiumProvider extends BaseProvider {
       apiKey: 'sk-or-v1-placeholder',
       baseURL: `${SUPABASE_URL}/functions/v1/premium-chat`,
       dangerouslyAllowBrowser: true,
-      fetch: (url, init) => {
+      fetch: (url: string | URL | Request, init?: RequestInit) => {
         const headers = new Headers(init?.headers)
         headers.set('X-User-Token', userToken)
         headers.set('Authorization', `Bearer ${SUPABASE_ANON_KEY}`)
@@ -62,30 +62,41 @@ export class SupabasePremiumProvider extends BaseProvider {
       const response = await (or as any).chat.send({
         chatRequest: {
           ...request,
-          stream: false
+          stream: false,
+          include_reasoning: true,
+          reasoning: { effort: 'high' }
         }
       })
       const message = response.choices[0]?.message
       if (message?.tool_calls) return message.tool_calls
-      return message?.content || ''
+      
+      const reasoning = message?.reasoning_content || message?.reasoning || message?.thought
+      let result = message?.content || ''
+      if (reasoning) {
+        result = `<think>${reasoning}</think>${result}`
+      }
+      return result
     }
 
     // Official SDK Streaming with chat.send
     const stream = await (or as any).chat.send({
       chatRequest: {
         ...request,
-        stream: true
+        stream: true,
+        include_reasoning: true,
+        reasoning: { effort: 'high' }
       }
     })
 
     let fullContent = ''
     const toolCalls: any[] = []
+    let hasStartedReasoning = false
 
     try {
       for await (const chunk of stream as any) {
         const delta = chunk.choices[0]?.delta
         const content = delta?.content || ''
-        const reasoning = delta?.reasoning_content || delta?.thought
+        const reasoning = delta?.reasoning_content || delta?.reasoning || delta?.thought
 
         if (delta?.tool_calls) {
           delta.tool_calls.forEach((tc: any) => {
@@ -101,15 +112,32 @@ export class SupabasePremiumProvider extends BaseProvider {
         }
 
         if (reasoning) {
-          const reasoningChunk = `<think>${reasoning}</think>`
-          fullContent += reasoningChunk
-          onChunk(reasoningChunk)
+          let reasoningToEmit = ''
+          if (!hasStartedReasoning) {
+            reasoningToEmit += '<think>'
+            hasStartedReasoning = true
+          }
+          reasoningToEmit += reasoning
+          fullContent += reasoningToEmit
+          onChunk(reasoningToEmit)
         }
 
         if (content) {
-          fullContent += content
-          onChunk(content)
+          let contentToEmit = ''
+          if (hasStartedReasoning) {
+            contentToEmit += '</think>'
+            hasStartedReasoning = false
+          }
+          contentToEmit += content
+          fullContent += contentToEmit
+          onChunk(contentToEmit)
         }
+      }
+
+      // Cleanup if reasoning was the only thing
+      if (hasStartedReasoning) {
+        onChunk('</think>')
+        fullContent += '</think>'
       }
     } catch (e) {
       console.error('SDK Streaming failed:', e)

@@ -1,13 +1,8 @@
 import { useEffect, useRef } from 'react'
+import type { TokenUsage } from '../types'
 
 interface TokenUsageDropdownProps {
-  tokenUsage?: {
-    inputTokens: number
-    outputTokens: number
-    totalTokens: number
-    tokensPerSecond?: number
-    streamDuration?: number
-  }
+  tokenUsage?: TokenUsage
   isOpen: boolean
   onToggle: () => void
 }
@@ -90,6 +85,18 @@ export function TokenUsageDropdown({ tokenUsage, isOpen, onToggle }: TokenUsageD
                 {tokenUsage.outputTokens.toLocaleString()} tokens
               </span>
             </div>
+
+            {tokenUsage.reasoningTokens !== undefined && tokenUsage.reasoningTokens > 0 && (
+              <div className="flex justify-between items-center">
+                <span>Reasoning:</span>
+                <span 
+                  className="font-medium tabular-nums text-blue-400" 
+                  aria-label={`${tokenUsage.reasoningTokens} reasoning tokens`}
+                >
+                  {tokenUsage.reasoningTokens.toLocaleString()} tokens
+                </span>
+              </div>
+            )}
             
             <div 
               className="flex justify-between items-center pt-1.5 mt-1.5"

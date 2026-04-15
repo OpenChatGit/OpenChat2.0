@@ -6,7 +6,6 @@ import { supabase } from '../lib/supabase'
 interface LoginModalProps {
   isOpen: boolean
   onClose: () => void
-  onLogin: (token: string) => Promise<void>
 }
 
 type AuthMode = 'options' | 'email'
